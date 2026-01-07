@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+
+{% block title %}My Profile - Disha Computer Classes{% endblock %}
+
+{% block content %}
+<!-- Profile Header with Avatar -->
+<div class="d-flex justify-between align-center mb-3"
+    style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 1.5rem; border-radius: 1rem; color: white;">
+    <div class="d-flex align-center" style="gap: 1rem;">
+        <div
+            style="width: 70px; height: 70px; border-radius: 50%; background: white; display: flex; align-items: center; justify-content: center; font-size: 2rem; font-weight: bold; color: #667eea; box-shadow: 0 4px 10px rgba(0,0,0,0.2);">
+            {{ student.full_name[0].upper() }}
+        </div>
+        <div>
+            <h2 style="margin: 0; color: white; font-size: 1.5rem;">{{ student.full_name }}</h2>
+            <p style="margin: 0.25rem 0 0; opacity: 0.9; font-size: 0.9rem;">{{ student.enrollment_no }}</p>
+        </div>
+    </div>
+    <a href="{{ url_for('student.edit_profile') }}" class="btn btn-sm"
+        style="background: white; color: #667eea; border: none;">
+        <i class="fas fa-user-edit"></i> Edit Profile
+    </a>
+</div>
+
+<div class="grid grid-3" style="gap: 1rem;">
+    <!-- Personal Information -->
+    <div class="card" style="grid-column: span 2; margin: 0; padding: 1.5rem;">
+        <h3
+            style="margin: 0 0 1rem; font-size: 1.25rem; color: #667eea; border-bottom: 2px solid #f3f4f6; padding-bottom: 0.5rem;">
+            <i class="fas fa-user"></i> Personal Information
+        </h3>
+        <div class="grid grid-2" style="gap: 1rem; font-size: 0.95rem;">
+            <div>
+                <label
+                    style="font-weight: 600; color: #6B7280; font-size: 0.85rem; display: block; margin-bottom: 0.25rem;">Full
+                    Name</label>
+                <p style="margin: 0;">{{ student.full_name }}</p>
+            </div>
+            <div>
+                <label
+                    style="font-weight: 600; color: #6B7280; font-size: 0.85rem; display: block; margin-bottom: 0.25rem;">Enrollment
+                    No</label>
+                <p style="margin: 0;">{{ student.enrollment_no }}</p>
+            </div>
+            <div>
+                <label
+                    style="font-weight: 600; color: #6B7280; font-size: 0.85rem; display: block; margin-bottom: 0.25rem;">Email</label>
+                <p style="margin: 0;">{{ student.email }}</p>
+            </div>
+            <div>
+                <label
+                    style="font-weight: 600; color: #6B7280; font-size: 0.85rem; display: block; margin-bottom: 0.25rem;">Username</label>
+                <p style="margin: 0;">{{ student.username }}</p>
+            </div>
+            <div>
+                <label
+                    style="font-weight: 600; color: #6B7280; font-size: 0.85rem; display: block; margin-bottom: 0.25rem;">Date
+                    of Birth</label>
+                <p style="margin: 0;">{{ student.dob or 'Not provided' }}</p>
+            </div>
+            <div>
+                <label
+                    style="font-weight: 600; color: #6B7280; font-size: 0.85rem; display: block; margin-bottom: 0.25rem;">Gender</label>
+                <p style="margin: 0;">{{ student.gender or 'Not specified' }}</p>
+            </div>
+            <div>
+                <label
+                    style="font-weight: 600; color: #6B7280; font-size: 0.85rem; display: block; margin-bottom: 0.25rem;">Contact</label>
+                <p style="margin: 0;">{{ student.contact or 'Not provided' }}</p>
+            </div>
+            <div>
+                <label
+                    style="font-weight: 600; color: #6B7280; font-size: 0.85rem; display: block; margin-bottom: 0.25rem;">Admission
+                    Date</label>
+                <p style="margin: 0;">{{ student.admission_date or 'N/A' }}</p>
+            </div>
+            <div style="grid-column: span 2;">
+                <label
+                    style="font-weight: 600; color: #6B7280; font-size: 0.85rem; display: block; margin-bottom: 0.25rem;">Address</label>
+                <p style="margin: 0;">{{ student.address or 'Not provided' }}</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="card" style="margin: 0; padding: 1.5rem;">
+        <h3
+            style="margin: 0 0 1rem; font-size: 1.25rem; color: #667eea; border-bottom: 2px solid #f3f4f6; padding-bottom: 0.5rem;">
+            <i class="fas fa-cog"></i> Account Settings
+        </h3>
+        <p style="color: #6B7280; font-size: 0.9rem; margin-bottom: 1rem;">Manage your account settings and security</p>
+        <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+            <a href="{{ url_for('student.edit_profile') }}" class="btn btn-primary" style="width: 100%;">
+                <i class="fas fa-edit"></i> Edit Profile
+            </a>
+            <a href="{{ url_for('student.dashboard') }}" class="btn btn-outline" style="width: 100%;">
+                <i class="fas fa-home"></i> Back to Dashboard
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Guardian Information -->
+<div class="card" style="margin-top: 1rem; padding: 1.5rem;">
+    <h3
+        style="margin: 0 0 1rem; font-size: 1.25rem; color: #667eea; border-bottom: 2px solid #f3f4f6; padding-bottom: 0.5rem;">
+        <i class="fas fa-user-friends"></i> Guardian Information
+    </h3>
+    <div class="grid grid-3" style="gap: 1rem; font-size: 0.95rem;">
+        <div>
+            <label
+                style="font-weight: 600; color: #6B7280; font-size: 0.85rem; display: block; margin-bottom: 0.25rem;">Guardian
+                Name</label>
+            <p style="margin: 0;">{{ student.guardian_name or 'Not provided' }}</p>
+        </div>
+        <div>
+            <label
+                style="font-weight: 600; color: #6B7280; font-size: 0.85rem; display: block; margin-bottom: 0.25rem;">Guardian
+                Contact</label>
+            <p style="margin: 0;">{{ student.guardian_contact or 'Not provided' }}</p>
+        </div>
+        <div>
+            <label
+                style="font-weight: 600; color: #6B7280; font-size: 0.85rem; display: block; margin-bottom: 0.25rem;">Guardian
+                Email</label>
+            <p style="margin: 0;">{{ student.guardian_email or 'Not provided' }}</p>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% block title %}Edit Profile - Student{% endblock %}
+{% block content %}
+<div class="mb-3">
+    <a href="{{ url_for('student.profile') }}" class="btn btn-secondary btn-sm">
+        <i class="fas fa-arrow-left"></i> Back to Profile
+    </a>
+</div>
+
+<div class="card" style="max-width: 700px; margin: 0 auto; padding: 1.5rem;">
+    <div style="text-align: center; margin-bottom: 1.5rem;">
+        <!-- User Avatar -->
+        <div
+            style="width: 80px; height: 80px; border-radius: 50%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display: inline-flex; align-items: center; justify-content: center; font-size: 2.5rem; font-weight: bold; color: white; box-shadow: 0 4px 10px rgba(0,0,0,0.15); margin-bottom: 0.75rem;">
+            {{ student.full_name[0].upper() }}
+        </div>
+        <h2 style="margin: 0; font-size: 1.5rem;">Edit Your Profile</h2>
+        <p style="color: #6B7280; font-size: 0.9rem;">Update your contact and security information</p>
+    </div>
+
+    <form method="POST">
+        <h4
+            style="font-size: 1.1rem; margin-bottom: 1rem; color: #667eea; border-bottom: 2px solid #f3f4f6; padding-bottom: 0.5rem;">
+            <i class="fas fa-user"></i> Basic Information
+        </h4>
+
+        <div class="form-group">
+            <label for="full_name" style="font-size: 0.9rem; font-weight: 600;">Full Name</label>
+            <input type="text" id="full_name" class="form-control" value="{{ student.full_name }}" disabled>
+            <small class="form-text text-muted">Contact admin to change your name</small>
+        </div>
+
+        <div class="form-group">
+            <label for="email" style="font-size: 0.9rem; font-weight: 600;">Email</label>
+            <input type="email" id="email" class="form-control" value="{{ student.email }}" disabled>
+            <small class="form-text text-muted">Contact admin to change your email</small>
+        </div>
+
+        <h4
+            style="font-size: 1.1rem; margin: 1.5rem 0 1rem; color: #667eea; border-bottom: 2px solid #f3f4f6; padding-bottom: 0.5rem;">
+            <i class="fas fa-phone"></i> Contact Information
+        </h4>
+
+        <div class="form-group">
+            <label for="contact" style="font-size: 0.9rem; font-weight: 600;">Contact Number</label>
+            <input type="text" name="contact" id="contact" class="form-control" value="{{ student.contact or '' }}"
+                placeholder="Enter your phone number">
+        </div>
+
+        <div class="form-group">
+            <label for="address" style="font-size: 0.9rem; font-weight: 600;">Address</label>
+            <textarea name="address" id="address" class="form-control" rows="3"
+                placeholder="Enter your address">{{ student.address or '' }}</textarea>
+        </div>
+
+        <h4
+            style="font-size: 1.1rem; margin: 1.5rem 0 1rem; color: #667eea; border-bottom: 2px solid #f3f4f6; padding-bottom: 0.5rem;">
+            <i class="fas fa-user-friends"></i> Guardian Information
+        </h4>
+
+        <div class="form-group">
+            <label for="guardian_name" style="font-size: 0.9rem; font-weight: 600;">Guardian Name</label>
+            <input type="text" name="guardian_name" id="guardian_name" class="form-control"
+                value="{{ student.guardian_name or '' }}" placeholder="Guardian's full name">
+        </div>
+
+        <div class="form-group">
+            <label for="guardian_contact" style="font-size: 0.9rem; font-weight: 600;">Guardian Contact</label>
+            <input type="text" name="guardian_contact" id="guardian_contact" class="form-control"
+                value="{{ student.guardian_contact or '' }}" placeholder="Guardian's phone number">
+        </div>
+
+        <div class="form-group">
+            <label for="guardian_email" style="font-size: 0.9rem; font-weight: 600;">Guardian Email</label>
+            <input type="email" name="guardian_email" id="guardian_email" class="form-control"
+                value="{{ student.guardian_email or '' }}" placeholder="Guardian's email address">
+        </div>
+
+        <h4
+            style="font-size: 1.1rem; margin: 1.5rem 0 1rem; color: #667eea; border-bottom: 2px solid #f3f4f6; padding-bottom: 0.5rem;">
+            <i class="fas fa-lock"></i> Change Password
+        </h4>
+
+        <div class="form-group">
+            <label for="new_password" style="font-size: 0.9rem; font-weight: 600;">New Password</label>
+            <div style="position: relative;">
+                <input type="password" name="new_password" id="new_password" class="form-control"
+                    placeholder="Leave blank to keep current password" style="padding-right: 40px;">
+                <button type="button" onclick="togglePassword('new_password')"
+                    style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: #6B7280; padding: 5px;">
+                    <i class="fas fa-eye" id="new_password-icon"></i>
+                </button>
+            </div>
+            <small class="form-text text-muted">Only fill this if you want to change your password</small>
+        </div>
+
+        <div style="margin-top: 1.5rem; text-align: center;">
+            <button type="submit" class="btn btn-primary" style="padding: 0.75rem 2rem;">
+                <i class="fas fa-save"></i> Save Changes
+            </button>
+            <a href="{{ url_for('student.profile') }}" class="btn btn-secondary"
+                style="padding: 0.75rem 2rem; margin-left: 0.5rem;">
+                Cancel
+            </a>
+        </div>
+    </form>
+</div>
+
+<script>
+    function togglePassword(fieldId) {
+        const field = document.getElementById(fieldId);
+        const icon = document.getElementById(fieldId + '-icon');
+
+        if (field.type === 'password') {
+            field.type = 'text';
+            icon.classList.remove('fa-eye');
+            icon.classList.add('fa-eye-slash');
+        } else {
+            field.type = 'password';
+            icon.classList.remove('fa-eye-slash');
+            icon.classList.add('fa-eye');
+        }
+    }
+</script>
+{% endblock %}

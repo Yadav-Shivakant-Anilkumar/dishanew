@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+{% block title %}View Course - {{ course.course_name }}{% endblock %}
+{% block content %}
+<div class="mb-3">
+    <a href="{{ url_for('admin.manage_courses') }}" class="btn btn-secondary">
+        <i class="fas fa-arrow-left"></i> Back to Courses
+    </a>
+    <a href="{{ url_for('admin.edit_course', course_id=course.course_id) }}" class="btn btn-warning">
+        <i class="fas fa-edit"></i> Edit Course
+    </a>
+</div>
+
+<div class="card mb-3">
+    <div class="card-header">
+        <h3><i class="fas fa-book"></i> Course Details</h3>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-6">
+                <table class="table table-borderless">
+                    <tr>
+                        <th width="30%">Course Code:</th>
+                        <td><strong>{{ course.course_code }}</strong></td>
+                    </tr>
+                    <tr>
+                        <th>Course Name:</th>
+                        <td>{{ course.course_name }}</td>
+                    </tr>
+                    <tr>
+                        <th>Category:</th>
+                        <td>{{ course.category or 'N/A' }}</td>
+                    </tr>
+                    <tr>
+                        <th>Level:</th>
+                        <td>
+                            <span class="badge badge-{{ 
+                                course.level == 'beginner' and 'success' or 
+                                course.level == 'intermediate' and 'warning' or 
+                                'danger' 
+                            }}">
+                                {{ course.level }}
+                            </span>
+                        </td>
+                    </tr>
+                </table>
+            </div>
+            <div class="col-md-6">
+                <table class="table table-borderless">
+                    <tr>
+                        <th width="30%">Duration:</th>
+                        <td>{{ course.duration_months }} Months</td>
+                    </tr>
+                    <tr>
+                        <th>Fees:</th>
+                        <td>₹{{ course.fees }}</td>
+                    </tr>
+                    <tr>
+                        <th>Status:</th>
+                        <td>
+                            <span class="badge badge-{{ course.status == 'active' and 'success' or 'danger' }}">
+                                {{ course.status }}
+                            </span>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>Last Updated:</th>
+                        <td>{{ course.updated_at or course.created_at }}</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+        <div class="mt-3">
+            <h4>Description</h4>
+            <p>{{ course.description or 'No description available.' }}</p>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header d-flex justify-between align-center">
+        <h3><i class="fas fa-chalkboard-teacher"></i> Related Batches</h3>
+        <a href="{{ url_for('admin.create_batch') }}" class="btn btn-sm btn-primary">
+            <i class="fas fa-plus"></i> Create Batch
+        </a>
+    </div>
+    <div class="card-body">
+        {% if batches %}
+        <div style="overflow-x: auto;">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Batch Name</th>
+                        <th>Teacher</th>
+                        <th>Start Date</th>
+                        <th>Schedule</th>
+                        <th>Students</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for batch in batches %}
+                    <tr>
+                        <td>{{ batch.batch_name }}</td>
+                        <td>{{ batch.teacher_name or 'Unassigned' }}</td>
+                        <td>{{ batch.start_date }}</td>
+                        <td>{{ batch.schedule }} ({{ batch.timing }})</td>
+                        <td>{{ batch.current_students }} / {{ batch.max_students }}</td>
+                        <td>
+                            <span class="badge badge-{{ 
+                                batch.status == 'ongoing' and 'success' or 
+                                batch.status == 'upcoming' and 'info' or 
+                                'secondary' 
+                            }}">
+                                {{ batch.status }}
+                            </span>
+                        </td>
+                        <td>
+                            <a href="{{ url_for('admin.view_batch', batch_id=batch.batch_id) }}" class="btn btn-sm btn-info" title="View">
+                                <i class="fas fa-eye"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-muted">No batches found for this course.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
