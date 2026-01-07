@@ -282,7 +282,7 @@ CREATE TABLE feedback (
 -- Insert default admin user
 -- Password: admin123 (hashed using bcrypt)
 INSERT INTO users (username, email, password_hash, role, full_name, status) 
-VALUES ('admin', 'admin@dishacomputer.com', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5yvMZvM8kQjzi', 'admin', 'System Administrator', 'active');
+VALUES ('admin', 'admin@dishacomputer.com', '$2b$12$YVrMDC1iv7cd1rTReBoalevpoBPj2HaVH/DyrhARa2QT9alpg42Q2', 'admin', 'System Administrator', 'active');
 
 -- Insert sample courses
 INSERT INTO courses (course_code, course_name, description, duration_months, fees, category, level, status) VALUES
