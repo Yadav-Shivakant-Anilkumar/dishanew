@@ -23,20 +23,36 @@
                 <li><a href="{{ url_for('dashboard') }}">Dashboard</a></li>
 
                 {% if session.role == 'admin' %}
-                <li><a href="{{ url_for('admin.manage_students') }}">Students</a></li>
-                <li><a href="{{ url_for('admin.manage_teachers') }}">Teachers</a></li>
-                <li><a href="{{ url_for('admin.manage_courses') }}">Courses</a></li>
-                <li><a href="{{ url_for('admin.manage_batches') }}">Batches</a></li>
-                <li><a href="{{ url_for('admin.reports') }}">Reports</a></li>
+                <li><a href="{{ url_for('admin.manage_users') }}"><i class="fas fa-users-cog"></i> Users</a></li>
+                <li><a href="{{ url_for('admin.manage_students') }}"><i class="fas fa-user-graduate"></i> Students</a>
+                </li>
+                <li><a href="{{ url_for('admin.manage_teachers') }}"><i class="fas fa-chalkboard-teacher"></i>
+                        Teachers</a></li>
+                <li><a href="{{ url_for('admin.manage_courses') }}"><i class="fas fa-book-open"></i> Courses</a></li>
+                <li><a href="{{ url_for('admin.manage_batches') }}"><i class="fas fa-calendar-alt"></i> Batches</a></li>
+                <li><a href="{{ url_for('admin.mark_attendance') }}"><i class="fas fa-user-check"></i> Attendance</a>
+                </li>
+                <li><a href="{{ url_for('admin.reports') }}"><i class="fas fa-chart-bar"></i> Reports</a></li>
                 {% elif session.role == 'teacher' %}
-                <li><a href="{{ url_for('teacher.batches') }}">My Batches</a></li>
-                <li><a href="{{ url_for('teacher.attendance') }}">Attendance</a></li>
-                <li><a href="{{ url_for('teacher.exams') }}">Exams</a></li>
+                <li><a href="{{ url_for('teacher.batches') }}"><i class="fas fa-chalkboard-teacher"></i> My Batches</a>
+                </li>
+                <li><a href="{{ url_for('teacher.attendance') }}"><i class="fas fa-user-check"></i> Attendance</a></li>
+                <li><a href="{{ url_for('teacher.attendance_reports') }}"><i class="fas fa-file-alt"></i> Reports</a>
+                </li>
+                <li><a href="{{ url_for('teacher.materials') }}"><i class="fas fa-folder"></i> Materials</a></li>
+                <li><a href="{{ url_for('teacher.exams') }}"><i class="fas fa-clipboard-list"></i> Exams</a></li>
                 {% elif session.role == 'student' %}
-                <li><a href="{{ url_for('student.courses') }}">My Courses</a></li>
-                <li><a href="{{ url_for('student.attendance') }}">Attendance</a></li>
-                <li><a href="{{ url_for('student.results') }}">Results</a></li>
-                <li><a href="{{ url_for('student.fees') }}">Fees</a></li>
+                <li><a href="{{ url_for('student.enroll') }}"><i class="fas fa-plus-circle"></i> Enroll</a></li>
+                <li><a href="{{ url_for('student.courses') }}"><i class="fas fa-book"></i> My Courses</a></li>
+                <li><a href="{{ url_for('student.attendance') }}"><i class="fas fa-check-circle"></i> Attendance</a>
+                </li>
+                <li><a href="{{ url_for('student.results') }}"><i class="fas fa-chart-line"></i> Results</a></li>
+                <li><a href="{{ url_for('student.fees') }}"><i class="fas fa-money-bill-wave"></i> Fees</a></li>
+                <li><a href="{{ url_for('student.materials') }}"><i class="fas fa-folder-open"></i> Materials</a></li>
+                <li><a href="{{ url_for('student.certificates') }}"><i class="fas fa-certificate"></i> Certificates</a>
+                </li>
+                <li><a href="{{ url_for('student.feedback') }}"><i class="fas fa-comment-dots"></i> Feedback</a></li>
+                <li><a href="{{ url_for('student.profile') }}"><i class="fas fa-user-circle"></i> Profile</a></li>
                 {% endif %}
 
                 <li><span style="color: var(--gray);">Welcome, {{ session.full_name }}</span></li>

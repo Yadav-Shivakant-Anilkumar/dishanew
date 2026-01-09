@@ -16,7 +16,8 @@
         {% if attendance_data %}
         <div class="grid grid-3 gap-3">
             {% for data in attendance_data %}
-            <div class="card" style="margin: 0; border-left: 4px solid var(--success); padding: var(--spacing-md);">
+            <div class="card"
+                style="margin: 0; border-left: 4px solid {% if data.attendance_percentage >= 75 %}var(--success){% elif data.attendance_percentage >= 60 %}var(--warning){% else %}var(--danger){% endif %}; padding: var(--spacing-md);">
                 <h4 class="mb-2">{{ data.course_name }}</h4>
                 <p class="text-muted mb-3">{{ data.batch_name }}</p>
 
@@ -26,23 +27,39 @@
                             }}</span></p>
                     <p class="mb-2"><strong>❌ Absent:</strong> <span class="text-danger">{{ data.absent_count or 0
                             }}</span></p>
-                    <p class="mb-0"><strong>⏰ Late:</strong> <span class="text-warning">{{ data.late_count or 0
+                    <p class="mb-2"><strong>⏰ Late:</strong> <span class="text-warning">{{ data.late_count or 0
+                            }}</span></p>
+                    <p class="mb-0"><strong>👤 Excused:</strong> <span class="text-info">{{ data.excused_count or 0
                             }}</span></p>
                 </div>
 
                 <div class="progress-bar mt-3">
                     <div class="progress-fill"
-                        style="width: {{ data.attendance_percentage or 0 }}%; background-color: {{ data.attendance_percentage >= 75 and 'var(--success)' or (data.attendance_percentage >= 60 and 'var(--warning)' or 'var(--danger)') }};">
+                        style="width: {{ data.attendance_percentage or 0 }}%; background-color: {% if data.attendance_percentage >= 75 %}var(--success){% elif data.attendance_percentage >= 60 %}var(--warning){% else %}var(--danger){% endif %};">
                         {{ "%.1f"|format(data.attendance_percentage or 0) }}%
                     </div>
                 </div>
+
+                {% if data.attendance_percentage is not none and data.attendance_percentage < 60 %} <div
+                    class="alert alert-danger mt-3 mb-0" style="padding: 0.5rem;">
+                    <strong>⚠️ Warning:</strong> Your attendance is below the 60% minimum requirement!
             </div>
-            {% endfor %}
+            {% elif data.attendance_percentage is not none and data.attendance_percentage >= 60 and
+            data.attendance_percentage < 75 %} <div class="alert alert-warning mt-3 mb-0" style="padding: 0.5rem;">
+                <strong>⚠️ Note:</strong> Try to maintain above 75% attendance.
         </div>
-        {% else %}
-        <p class="text-muted text-center mb-0">No attendance data available yet.</p>
+        {% elif data.attendance_percentage >= 75 %}
+        <div class="alert alert-success mt-3 mb-0" style="padding: 0.5rem;">
+            <strong>✓ Great!</strong> Your attendance is good.
+        </div>
         {% endif %}
     </div>
+    {% endfor %}
+</div>
+{% else %}
+<p class="text-muted text-center mb-0">No attendance data available yet.</p>
+{% endif %}
+</div>
 </div>
 
 <!-- Recent Attendance Records -->
@@ -72,7 +89,7 @@
                         <td>
                             <span
                                 class="badge badge-{{ record.status == 'present' and 'success' or (record.status == 'late' and 'warning' or (record.status == 'excused' and 'info' or 'danger')) }}">
-                                {{ record.status }}
+                                {{ record.status|capitalize }}
                             </span>
                         </td>
                         <td>{{ record.remarks or '-' }}</td>
@@ -105,6 +122,7 @@
         color: white;
         font-weight: bold;
         transition: width 0.3s ease;
+        min-width: 50px;
     }
 </style>
 

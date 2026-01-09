@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+
+{% block title %}My Batches - Disha Computer Classes{% endblock %}
+
+{% block content %}
+<h1 class="mb-3">📚 My Batches</h1>
+
+<!-- Batches List -->
+<div class="card">
+    <div class="card-header">
+        <h3>All Assigned Batches</h3>
+    </div>
+    <div class="card-body">
+        {% if batches %}
+        <div class="grid grid-2">
+            {% for batch in batches %}
+            <div class="card"
+                style="margin: 0; border-left: 4px solid {% if batch.status == 'ongoing' %}#10B981{% elif batch.status == 'upcoming' %}#F59E0B{% else %}#6B7280{% endif %};">
+                <div class="mb-2">
+                    <h4 style="margin: 0 0 0.5rem 0;">{{ batch.course_name }}</h4>
+                    <span
+                        class="badge badge-{% if batch.status == 'ongoing' %}success{% elif batch.status == 'upcoming' %}warning{% else %}secondary{% endif %}">
+                        {{ batch.status }}
+                    </span>
+                </div>
+
+                <div class="mb-2">
+                    <p style="margin: 0.25rem 0;"><strong>Batch:</strong> {{ batch.batch_name }}</p>
+                    <p style="margin: 0.25rem 0;"><strong>Course Code:</strong> {{ batch.course_code }}</p>
+                    <p style="margin: 0.25rem 0;"><strong>Schedule:</strong> {{ batch.schedule }}</p>
+                    <p style="margin: 0.25rem 0;"><strong>Timing:</strong> {{ batch.timing }}</p>
+                    <p style="margin: 0.25rem 0;"><strong>Start Date:</strong> {{ batch.start_date }}</p>
+                    <p style="margin: 0.25rem 0;"><strong>End Date:</strong> {{ batch.end_date }}</p>
+                    <p style="margin: 0.25rem 0;"><strong>Enrolled Students:</strong>
+                        <span class="badge badge-info">{{ batch.enrolled_students or 0 }}</span>
+                    </p>
+                </div>
+
+                <div class="mt-2" style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                    <a href="{{ url_for('teacher.batch_students', batch_id=batch.batch_id) }}"
+                        class="btn btn-primary btn-sm">
+                        <i class="fas fa-users"></i> View Students
+                    </a>
+                    <a href="{{ url_for('teacher.attendance', batch_id=batch.batch_id) }}"
+                        class="btn btn-success btn-sm">
+                        <i class="fas fa-user-check"></i> Mark Attendance
+                    </a>
+                    <a href="{{ url_for('teacher.attendance_reports', batch_id=batch.batch_id) }}"
+                        class="btn btn-info btn-sm">
+                        <i class="fas fa-chart-bar"></i> Reports
+                    </a>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div style="text-align: center; padding: 3rem 1rem;">
+            <i class="fas fa-inbox" style="font-size: 4rem; color: #D1D5DB; margin-bottom: 1rem;"></i>
+            <p class="text-muted">No batches assigned yet</p>
+            <p class="text-muted" style="font-size: 0.875rem;">Contact the administrator to get batches assigned to you.
+            </p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Summary Section -->
+{% if batches %}
+<div class="card mt-3">
+    <div class="card-header">
+        <h3>📊 Summary</h3>
+    </div>
+    <div class="card-body">
+        <div class="grid grid-4">
+            <div class="stat-card">
+                <div class="stat-value">{{ batches|length }}</div>
+                <div class="stat-label">Total Batches</div>
+            </div>
+            <div class="stat-card success">
+                <div class="stat-value">{{ batches|selectattr('status', 'equalto', 'ongoing')|list|length }}</div>
+                <div class="stat-label">Ongoing</div>
+            </div>
+            <div class="stat-card warning">
+                <div class="stat-value">{{ batches|selectattr('status', 'equalto', 'upcoming')|list|length }}</div>
+                <div class="stat-label">Upcoming</div>
+            </div>
+            <div class="stat-card info">
+                <div class="stat-value">{{ batches|sum(attribute='enrolled_students') }}</div>
+                <div class="stat-label">Total Students</div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<style>
+    .card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        transition: all 0.3s ease;
+    }
+</style>
+{% endblock %}

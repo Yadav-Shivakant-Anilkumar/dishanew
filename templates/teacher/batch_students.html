@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+
+{% block title %}Batch Students - Disha Computer Classes{% endblock %}
+
+{% block content %}
+<div class="mb-3">
+    <a href="{{ url_for('teacher.batches') }}" class="btn btn-secondary btn-sm">
+        <i class="fas fa-arrow-left"></i> Back to Batches
+    </a>
+</div>
+
+<h1 class="mb-3">👥 Batch Students</h1>
+
+<!-- Batch Info -->
+<div class="card mb-3">
+    <div class="card-header">
+        <h3>📚 {{ batch.course_name }} - {{ batch.batch_name }}</h3>
+    </div>
+    <div class="card-body">
+        <div class="grid grid-3">
+            <p><strong>Schedule:</strong> {{ batch.schedule }}</p>
+            <p><strong>Timing:</strong> {{ batch.timing }}</p>
+            <p><strong>Duration:</strong> {{ batch.start_date }} to {{ batch.end_date }}</p>
+        </div>
+    </div>
+</div>
+
+<!-- Students List -->
+<div class="card">
+    <div class="card-header">
+        <h3>Students Enrolled</h3>
+    </div>
+    <div class="card-body">
+        {% if students %}
+        <div class="table-responsive">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Enrollment No</th>
+                        <th>Name</th>
+                        <th>Email</th>
+                        <th>Contact</th>
+                        <th>Enrollment Date</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for student in students %}
+                    <tr>
+                        <td><strong>{{ student.enrollment_no }}</strong></td>
+                        <td>{{ student.full_name }}</td>
+                        <td>{{ student.email }}</td>
+                        <td>{{ student.contact }}</td>
+                        <td>{{ student.enrollment_date }}</td>
+                        <td>
+                            <span
+                                class="badge badge-{% if student.status == 'active' %}success{% elif student.status == 'pending' %}warning{% else %}secondary{% endif %}">
+                                {{ student.status }}
+                            </span>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="mt-3">
+            <p><strong>Total Students:</strong> {{ students|length }}</p>
+            <p><strong>Active Students:</strong> {{ students|selectattr('status', 'equalto', 'active')|list|length }}
+            </p>
+        </div>
+        {% else %}
+        <div style="text-align: center; padding: 3rem 1rem;">
+            <i class="fas fa-users-slash" style="font-size: 4rem; color: #D1D5DB; margin-bottom: 1rem;"></i>
+            <p class="text-muted">No students enrolled in this batch yet</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<style>
+    .table-responsive {
+        overflow-x: auto;
+    }
+</style>
+{% endblock %}

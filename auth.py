@@ -50,10 +50,10 @@ def login():
             flash('Please enter both username and password.', 'danger')
             return render_template('login.html')
         
-        # Get user from database
+        # Get user from database - accept username OR email
         user = execute_query(
-            "SELECT * FROM users WHERE username = %s AND status = 'active'",
-            (username,),
+            "SELECT * FROM users WHERE (username = %s OR email = %s) AND status = 'active'",
+            (username, username),
             fetch_one=True
         )
         

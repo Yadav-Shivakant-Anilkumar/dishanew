@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Mark Attendance - Teacher{% endblock %}
+{% block title %}Mark Attendance - Admin{% endblock %}
 {% block content %}
 <h1 class="mb-3">📋 Mark Attendance</h1>
 
@@ -25,8 +25,7 @@
                         onchange="this.form.submit()" required>
                 </div>
                 <div style="display: flex; align-items: flex-end;">
-                    <button type="button" class="btn btn-secondary"
-                        onclick="document.querySelector('input[name=date]').valueAsDate=new Date(); this.form.submit();">Today</button>
+                    <button type="button" class="btn btn-secondary" onclick="setToday()">Today</button>
                 </div>
             </div>
         </form>
@@ -87,7 +86,8 @@
 
             <div class="mt-3">
                 <button type="submit" class="btn btn-primary">💾 Save Attendance</button>
-                <a href="{{ url_for('teacher.attendance_reports') }}" class="btn btn-info">📊 View Reports</a>
+                <a href="{{ url_for('admin.attendance_history') }}" class="btn btn-secondary">📜 View History</a>
+                <a href="{{ url_for('admin.attendance_reports') }}" class="btn btn-info">📊 View Reports</a>
             </div>
         </form>
         {% else %}
@@ -97,6 +97,12 @@
 </div>
 
 <script>
+    function setToday() {
+        const today = new Date().toISOString().split('T')[0];
+        document.querySelector('input[name=date]').value = today;
+        document.querySelector('form').submit();
+    }
+
     function markAll(status) {
         const radios = document.querySelectorAll(`input[type="radio"][value="${status}"]`);
         radios.forEach(radio => radio.checked = true);

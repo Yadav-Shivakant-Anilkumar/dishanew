@@ -310,6 +310,19 @@ def view_student(student_id):
         fetch=True
     )
     
+    # Get payment transactions
+    transactions = execute_query(
+        """SELECT ft.*, c.course_name, u.full_name as received_by_name
+           FROM fee_transactions ft
+           JOIN fees f ON ft.fee_id = f.fee_id
+           JOIN courses c ON f.course_id = c.course_id
+           LEFT JOIN users u ON ft.received_by = u.user_id
+           WHERE f.student_id = %s
+           ORDER BY ft.payment_date DESC""",
+        (student_id,),
+        fetch=True
+    )
+    
     # Get certificates
     certificates = execute_query(
         """SELECT cert.*, c.course_name
@@ -325,6 +338,7 @@ def view_student(student_id):
                          student=student, 
                          enrollments=enrollments,
                          fees=fees,
+                         transactions=transactions,
                          certificates=certificates)
 
 @admin_bp.route('/students/delete/<int:student_id>', methods=['POST'])
@@ -820,6 +834,362 @@ def delete_batch(batch_id):
         flash('Batch not found.', 'danger')
     
     return redirect(url_for('admin.manage_batches'))
+
+# ============================================================================
+# ATTENDANCE MANAGEMENT ROUTES
+# ============================================================================
+
+@admin_bp.route('/attendance/mark', methods=['GET', 'POST'])
+@role_required('admin')
+def mark_attendance():
+    """Mark attendance for any batch"""
+    if request.method == 'POST':
+        batch_id = request.form.get('batch_id')
+        attendance_date = request.form.get('attendance_date')
+        student_ids = request.form.getlist('student_ids')
+        
+        # Process attendance for each student
+        for student_id in student_ids:
+            status = request.form.get(f'status_{student_id}')
+            remarks = request.form.get(f'remarks_{student_id}', '').strip()
+            
+            # Only save if status is selected (not unmarked)
+            if status and status != 'unmarked':
+                # Check if attendance already exists
+                existing = execute_query(
+                    """SELECT attendance_id FROM attendance
+                       WHERE batch_id = %s AND student_id = %s AND attendance_date = %s""",
+                    (batch_id, student_id, attendance_date),
+                    fetch_one=True
+                )
+                
+                if existing:
+                    # Update existing
+                    execute_query(
+                        """UPDATE attendance SET status = %s, marked_by = %s, remarks = %s
+                           WHERE attendance_id = %s""",
+                        (status, session.get('user_id'), remarks if remarks else None, existing['attendance_id']),
+                        commit=True
+                    )
+                else:
+                    # Insert new
+                    execute_query(
+                        """INSERT INTO attendance (batch_id, student_id, attendance_date, status, marked_by, remarks)
+                           VALUES (%s, %s, %s, %s, %s, %s)""",
+                        (batch_id, student_id, attendance_date, status, session.get('user_id'), remarks if remarks else None),
+                        commit=True
+                    )
+        
+        flash('Attendance marked successfully!', 'success')
+        return redirect(url_for('admin.mark_attendance', batch_id=batch_id, date=attendance_date))
+    
+    # Get all batches for dropdown
+    batches = execute_query(
+        """SELECT b.batch_id, b.batch_name, c.course_name
+           FROM batches b
+           JOIN courses c ON b.course_id = c.course_id
+           WHERE b.status IN ('upcoming', 'ongoing')
+           ORDER BY b.batch_name""",
+        fetch=True
+    )
+    
+    # If batch selected, get students
+    selected_batch = request.args.get('batch_id', type=int)
+    students = []
+    selected_date = request.args.get('date', datetime.now().strftime('%Y-%m-%d'))
+    existing_attendance = {}
+    
+    if selected_batch:
+        students = execute_query(
+            """SELECT s.student_id, s.enrollment_no, u.full_name
+               FROM enrollments e
+               JOIN students s ON e.student_id = s.student_id
+               JOIN users u ON s.user_id = u.user_id
+               WHERE e.batch_id = %s AND e.status = 'active'
+               ORDER BY u.full_name""",
+            (selected_batch,),
+            fetch=True
+        )
+        
+        # Get existing attendance for the date
+        attendance_records = execute_query(
+            """SELECT student_id, status, remarks FROM attendance
+               WHERE batch_id = %s AND attendance_date = %s""",
+            (selected_batch, selected_date),
+            fetch=True
+        )
+        
+        for record in attendance_records:
+            existing_attendance[record['student_id']] = {
+                'status': record['status'],
+                'remarks': record['remarks']
+            }
+    
+    return render_template('admin/attendance_mark.html',
+                         batches=batches,
+                         students=students,
+                         selected_batch=selected_batch,
+                         selected_date=selected_date,
+                         existing_attendance=existing_attendance)
+
+@admin_bp.route('/attendance/reports')
+@role_required('admin')
+def attendance_reports():
+    """View attendance reports with filtering"""
+    # Get filter parameters
+    batch_id = request.args.get('batch_id', type=int)
+    student_id = request.args.get('student_id', type=int)
+    date_from = request.args.get('date_from', '')
+    date_to = request.args.get('date_to', '')
+    
+    # Get all batches for filter
+    batches = execute_query(
+        """SELECT b.batch_id, b.batch_name, c.course_name
+           FROM batches b
+           JOIN courses c ON b.course_id = c.course_id
+           ORDER BY b.batch_name""",
+        fetch=True
+    )
+    
+    # Get all students for filter
+    all_students = execute_query(
+        """SELECT s.student_id, s.enrollment_no, u.full_name
+           FROM students s
+           JOIN users u ON s.user_id = u.user_id
+           WHERE u.status = 'active'
+           ORDER BY u.full_name""",
+        fetch=True
+    )
+    
+    # Build attendance summary query
+    attendance_summary = []
+    low_attendance_students = []
+    
+    if batch_id:
+        # Get attendance summary for the batch
+        query = """
+            SELECT 
+                s.student_id,
+                s.enrollment_no,
+                u.full_name,
+                COUNT(a.attendance_id) as total_classes,
+                SUM(CASE WHEN a.status IN ('present', 'late') THEN 1 ELSE 0 END) as attended,
+                SUM(CASE WHEN a.status = 'present' THEN 1 ELSE 0 END) as present_count,
+                SUM(CASE WHEN a.status = 'absent' THEN 1 ELSE 0 END) as absent_count,
+                SUM(CASE WHEN a.status = 'late' THEN 1 ELSE 0 END) as late_count,
+                SUM(CASE WHEN a.status = 'excused' THEN 1 ELSE 0 END) as excused_count,
+                ROUND(SUM(CASE WHEN a.status IN ('present', 'late') THEN 1 ELSE 0 END) * 100.0 / NULLIF(COUNT(a.attendance_id), 0), 2) as attendance_percentage
+            FROM enrollments e
+            JOIN students s ON e.student_id = s.student_id
+            JOIN users u ON s.user_id = u.user_id
+            LEFT JOIN attendance a ON a.student_id = s.student_id AND a.batch_id = e.batch_id
+        """
+        
+        params = [batch_id]
+        query += " WHERE e.batch_id = %s AND e.status = 'active'"
+        
+        if date_from and date_to:
+            query += " AND a.attendance_date BETWEEN %s AND %s"
+            params.extend([date_from, date_to])
+        elif date_from:
+            query += " AND a.attendance_date >= %s"
+            params.append(date_from)
+        elif date_to:
+            query += " AND a.attendance_date <= %s"
+            params.append(date_to)
+        
+        query += " GROUP BY s.student_id, s.enrollment_no, u.full_name ORDER BY u.full_name"
+        
+        attendance_summary = execute_query(query, tuple(params), fetch=True)
+        
+        # Identify low attendance students (< 60%)
+        low_attendance_students = [
+            student for student in attendance_summary 
+            if student['attendance_percentage'] is not None and student['attendance_percentage'] < 60
+        ]
+    
+    elif student_id:
+        # Get attendance summary for specific student across all batches
+        query = """
+            SELECT 
+                b.batch_id,
+                b.batch_name,
+                c.course_name,
+                COUNT(a.attendance_id) as total_classes,
+                SUM(CASE WHEN a.status IN ('present', 'late') THEN 1 ELSE 0 END) as attended,
+                SUM(CASE WHEN a.status = 'present' THEN 1 ELSE 0 END) as present_count,
+                SUM(CASE WHEN a.status = 'absent' THEN 1 ELSE 0 END) as absent_count,
+                SUM(CASE WHEN a.status = 'late' THEN 1 ELSE 0 END) as late_count,
+                SUM(CASE WHEN a.status = 'excused' THEN 1 ELSE 0 END) as excused_count,
+                ROUND(SUM(CASE WHEN a.status IN ('present', 'late') THEN 1 ELSE 0 END) * 100.0 / NULLIF(COUNT(a.attendance_id), 0), 2) as attendance_percentage
+            FROM enrollments e
+            JOIN batches b ON e.batch_id = b.batch_id
+            JOIN courses c ON b.course_id = c.course_id
+            LEFT JOIN attendance a ON a.student_id = e.student_id AND a.batch_id = e.batch_id
+            WHERE e.student_id = %s
+        """
+        
+        params = [student_id]
+        
+        if date_from and date_to:
+            query += " AND a.attendance_date BETWEEN %s AND %s"
+            params.extend([date_from, date_to])
+        elif date_from:
+            query += " AND a.attendance_date >= %s"
+            params.append(date_from)
+        elif date_to:
+            query += " AND a.attendance_date <= %s"
+            params.append(date_to)
+        
+        query += " GROUP BY b.batch_id, b.batch_name, c.course_name ORDER BY b.batch_name"
+        
+        attendance_summary = execute_query(query, tuple(params), fetch=True)
+    
+    return render_template('admin/attendance_reports.html',
+                         batches=batches,
+                         all_students=all_students,
+                         attendance_summary=attendance_summary,
+                         low_attendance_students=low_attendance_students,
+                         selected_batch=batch_id,
+                         selected_student=student_id,
+                         date_from=date_from,
+                         date_to=date_to)
+
+@admin_bp.route('/attendance/history')
+@role_required('admin')
+def attendance_history():
+    """View and manage attendance history"""
+    # Get filter parameters
+    batch_id = request.args.get('batch_id', type=int)
+    student_id = request.args.get('student_id', type=int)
+    date_from = request.args.get('date_from', '')
+    date_to = request.args.get('date_to', '')
+    status_filter = request.args.get('status', '')
+    
+    # Get all batches for filter
+    batches = execute_query(
+        """SELECT b.batch_id, b.batch_name, c.course_name
+           FROM batches b
+           JOIN courses c ON b.course_id = c.course_id
+           ORDER BY b.batch_name""",
+        fetch=True
+    )
+    
+    #Get all students for filter
+    all_students = execute_query(
+        """SELECT s.student_id, s.enrollment_no, u.full_name
+           FROM students s
+           JOIN users u ON s.user_id = u.user_id
+           WHERE u.status = 'active'
+           ORDER BY u.full_name""",
+        fetch=True
+    )
+    
+    # Build query for attendance records
+    query = """
+        SELECT 
+            a.*,
+            s.enrollment_no,
+            u.full_name as student_name,
+            b.batch_name,
+            c.course_name,
+            marker.full_name as marked_by_name
+        FROM attendance a
+        JOIN students s ON a.student_id = s.student_id
+        JOIN users u ON s.user_id = u.user_id
+        JOIN batches b ON a.batch_id = b.batch_id
+        JOIN courses c ON b.course_id = c.course_id
+        JOIN users marker ON a.marked_by = marker.user_id
+        WHERE 1=1
+    """
+    
+    params = []
+    
+    if batch_id:
+        query += " AND a.batch_id = %s"
+        params.append(batch_id)
+    
+    if student_id:
+        query += " AND a.student_id = %s"
+        params.append(student_id)
+    
+    if date_from:
+        query += " AND a.attendance_date >= %s"
+        params.append(date_from)
+    
+    if date_to:
+        query += " AND a.attendance_date <= %s"
+        params.append(date_to)
+    
+    if status_filter:
+        query += " AND a.status = %s"
+        params.append(status_filter)
+    
+    query += " ORDER BY a.attendance_date DESC, u.full_name LIMIT 500"
+    
+    attendance_records = execute_query(query, tuple(params) if params else None, fetch=True)
+    
+    return render_template('admin/attendance_history.html',
+                         batches=batches,
+                         all_students=all_students,
+                         attendance_records=attendance_records,
+                         selected_batch=batch_id,
+                         selected_student=student_id,
+                         date_from=date_from,
+                         date_to=date_to,
+                         status_filter=status_filter)
+
+@admin_bp.route('/attendance/edit/<int:attendance_id>', methods=['GET', 'POST'])
+@role_required('admin')
+def edit_attendance(attendance_id):
+    """Edit a single attendance record"""
+    attendance = execute_query(
+        """SELECT a.*, s.enrollment_no, u.full_name as student_name, b.batch_name, c.course_name
+           FROM attendance a
+           JOIN students s ON a.student_id = s.student_id
+           JOIN users u ON s.user_id = u.user_id
+           JOIN batches b ON a.batch_id = b.batch_id
+           JOIN courses c ON b.course_id = c.course_id
+           WHERE a.attendance_id = %s""",
+        (attendance_id,),
+        fetch_one=True
+    )
+    
+    if not attendance:
+        flash('Attendance record not found.', 'danger')
+        return redirect(url_for('admin.attendance_history'))
+    
+    if request.method == 'POST':
+        status = request.form.get('status')
+        remarks = request.form.get('remarks', '').strip()
+        
+        execute_query(
+            """UPDATE attendance SET status = %s, remarks = %s, marked_by = %s
+               WHERE attendance_id = %s""",
+            (status, remarks if remarks else None, session.get('user_id'), attendance_id),
+            commit=True
+        )
+        
+        flash('Attendance record updated successfully!', 'success')
+        return redirect(url_for('admin.attendance_history'))
+    
+    return render_template('admin/edit_attendance.html', attendance=attendance)
+
+@admin_bp.route('/attendance/delete/<int:attendance_id>', methods=['POST'])
+@role_required('admin')
+def delete_attendance(attendance_id):
+    """Delete an attendance record"""
+    execute_query(
+        "DELETE FROM attendance WHERE attendance_id = %s",
+        (attendance_id,),
+        commit=True
+    )
+    flash('Attendance record deleted successfully!', 'success')
+    return redirect(url_for('admin.attendance_history'))
+
+# ============================================================================
+# END ATTENDANCE MANAGEMENT ROUTES
+# ============================================================================
 
 @admin_bp.route('/reports')
 @role_required('admin')

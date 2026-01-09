@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% block title %}Attendance Reports - Teacher{% endblock %}
+{% block content %}
+<h1 class="mb-3">📊 Attendance Reports</h1>
+
+<div class="card mb-3">
+    <div class="card-header">
+        <h3 class="mb-0">Filters</h3>
+    </div>
+    <div class="card-body">
+        <form method="GET">
+            <div class="grid grid-3 gap-3">
+                <div class="form-group">
+                    <label class="form-label">Select Batch *</label>
+                    <select name="batch_id" class="form-control form-select" onchange="this.form.submit()" required>
+                        <option value="">-- Select Batch --</option>
+                        {% for batch in batches %}
+                        <option value="{{ batch.batch_id }}" {% if selected_batch==batch.batch_id %}selected{% endif %}>
+                            {{ batch.batch_name }} - {{ batch.course_name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">From Date</label>
+                    <input type="date" name="date_from" class="form-control" value="{{ date_from }}"
+                        onchange="this.form.submit()">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">To Date</label>
+                    <input type="date" name="date_to" class="form-control" value="{{ date_to }}"
+                        onchange="this.form.submit()">
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% if low_attendance_students %}
+<div class="alert alert-danger">
+    <h4>⚠️ Low Attendance Warning</h4>
+    <p><strong>{{ low_attendance_students|length }} student(s)</strong> have attendance below the 60% minimum
+        requirement:</p>
+    <ul>
+        {% for student in low_attendance_students %}
+        <li>{{ student.full_name }} ({{ student.enrollment_no }}) - <strong>{{
+                "%.1f"|format(student.attendance_percentage or 0) }}%</strong></li>
+        {% endfor %}
+    </ul>
+</div>
+{% endif %}
+
+{% if attendance_summary %}
+<div class="card">
+    <div class="card-header">
+        <h3 class="mb-0">Attendance Summary</h3>
+    </div>
+    <div class="card-body">
+        <div style="overflow-x: auto;">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Enrollment No</th>
+                        <th>Student Name</th>
+                        <th>Total Classes</th>
+                        <th>Present</th>
+                        <th>Absent</th>
+                        <th>Late</th>
+                        <th>Excused</th>
+                        <th>Attendance %</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for record in attendance_summary %}
+                    <tr>
+                        <td>{{ record.enrollment_no }}</td>
+                        <td>{{ record.full_name }}</td>
+                        <td>{{ record.total_classes or 0 }}</td>
+                        <td class="text-success">{{ record.present_count or 0 }}</td>
+                        <td class="text-danger">{{ record.absent_count or 0 }}</td>
+                        <td class="text-warning">{{ record.late_count or 0 }}</td>
+                        <td class="text-info">{{ record.excused_count or 0 }}</td>
+                        <td>
+                            <strong>{{ "%.1f"|format(record.attendance_percentage or 0) }}%</strong>
+                        </td>
+                        <td>
+                            {% if record.attendance_percentage is none or record.total_classes == 0 %}
+                            <span class="badge badge-secondary">No Data</span>
+                            {% elif record.attendance_percentage >= 75 %}
+                            <span class="badge badge-success">✓ Good</span>
+                            {% elif record.attendance_percentage >= 60 %}
+                            <span class="badge badge-warning">⚠ Fair</span>
+                            {% else %}
+                            <span class="badge badge-danger">✗ Below Minimum</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% else %}
+<div class="card">
+    <div class="card-body text-center text-muted">
+        <p>Select a batch to view attendance reports</p>
+    </div>
+</div>
+{% endif %}
+
+<div class="mt-3">
+    <a href="{{ url_for('teacher.attendance') }}" class="btn btn-primary">📋 Mark Attendance</a>
+</div>
+
+{% endblock %}

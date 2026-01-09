@@ -1,0 +1,205 @@
+{% extends "base.html" %}
+
+{% block title %}Manage Exams - Disha Computer Classes{% endblock %}
+
+{% block content %}
+<h1 class="mb-3">📝 Manage Exams</h1>
+
+<!-- Create Exam Form -->
+<div class="card mb-3">
+    <div class="card-header">
+        <h3>➕ Create New Exam</h3>
+    </div>
+    <div class="card-body">
+        <form method="POST" action="{{ url_for('teacher.exams') }}">
+            <input type="hidden" name="action" value="create_exam">
+
+            <div class="grid grid-2">
+                <div class="form-group">
+                    <label for="batch_id">Batch *</label>
+                    <select name="batch_id" id="batch_id" class="form-control" required>
+                        <option value="">Select Batch</option>
+                        {% for batch in batches %}
+                        <option value="{{ batch.batch_id }}">{{ batch.batch_name }} - {{ batch.course_name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="exam_name">Exam Name *</label>
+                    <input type="text" name="exam_name" id="exam_name" class="form-control"
+                        placeholder="e.g., Mid-Term Exam" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="exam_type">Exam Type *</label>
+                    <select name="exam_type" id="exam_type" class="form-control" required>
+                        <option value="theory">Theory</option>
+                        <option value="practical">Practical</option>
+                        <option value="viva">Viva</option>
+                        <option value="assignment">Assignment</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="exam_date">Exam Date *</label>
+                    <input type="date" name="exam_date" id="exam_date" class="form-control" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="total_marks">Total Marks *</label>
+                    <input type="number" name="total_marks" id="total_marks" class="form-control" value="100" min="1"
+                        required>
+                </div>
+
+                <div class="form-group">
+                    <label for="passing_marks">Passing Marks *</label>
+                    <input type="number" name="passing_marks" id="passing_marks" class="form-control" value="40" min="1"
+                        required>
+                </div>
+
+                <div class="form-group">
+                    <label for="duration_minutes">Duration (minutes) *</label>
+                    <input type="number" name="duration_minutes" id="duration_minutes" class="form-control" value="60"
+                        min="1" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="description">Description</label>
+                    <input type="text" name="description" id="description" class="form-control"
+                        placeholder="Optional exam description">
+                </div>
+            </div>
+
+            <div class="mt-2">
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-plus"></i> Create Exam
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Exams List -->
+<div class="card">
+    <div class="card-header">
+        <h3>📋 All Exams</h3>
+    </div>
+    <div class="card-body">
+        {% if exams_list %}
+        <div class="table-responsive">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Exam Name</th>
+                        <th>Batch</th>
+                        <th>Course</th>
+                        <th>Type</th>
+                        <th>Date</th>
+                        <th>Marks</th>
+                        <th>Duration</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for exam in exams_list %}
+                    <tr>
+                        <td><strong>{{ exam.exam_name }}</strong></td>
+                        <td>{{ exam.batch_name }}</td>
+                        <td>{{ exam.course_name }}</td>
+                        <td>
+                            <span
+                                class="badge badge-{% if exam.exam_type == 'theory' %}primary{% elif exam.exam_type == 'practical' %}success{% elif exam.exam_type == 'viva' %}info{% else %}warning{% endif %}">
+                                {{ exam.exam_type }}
+                            </span>
+                        </td>
+                        <td>{{ exam.exam_date }}</td>
+                        <td>{{ exam.passing_marks }}/{{ exam.total_marks }}</td>
+                        <td>{{ exam.duration_minutes }} min</td>
+                        <td>
+                            <a href="{{ url_for('teacher.enter_marks', exam_id=exam.exam_id) }}"
+                                class="btn btn-primary btn-sm">
+                                <i class="fas fa-edit"></i> Enter Marks
+                            </a>
+                        </td>
+                    </tr>
+                    {% if exam.description %}
+                    <tr style="background-color: #f9fafb;">
+                        <td colspan="8" style="padding-left: 2rem; font-size: 0.875rem; color: #6B7280;">
+                            <i class="fas fa-info-circle"></i> {{ exam.description }}
+                        </td>
+                    </tr>
+                    {% endif %}
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div style="text-align: center; padding: 3rem 1rem;">
+            <i class="fas fa-clipboard-list" style="font-size: 4rem; color: #D1D5DB; margin-bottom: 1rem;"></i>
+            <p class="text-muted">No exams created yet</p>
+            <p class="text-muted" style="font-size: 0.875rem;">Use the form above to create your first exam.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Summary Section -->
+{% if exams_list %}
+<div class="card mt-3">
+    <div class="card-header">
+        <h3>📊 Summary</h3>
+    </div>
+    <div class="card-body">
+        <div class="grid grid-4">
+            <div class="stat-card">
+                <div class="stat-value">{{ exams_list|length }}</div>
+                <div class="stat-label">Total Exams</div>
+            </div>
+            <div class="stat-card primary">
+                <div class="stat-value">{{ exams_list|selectattr('exam_type', 'equalto', 'theory')|list|length }}</div>
+                <div class="stat-label">Theory</div>
+            </div>
+            <div class="stat-card success">
+                <div class="stat-value">{{ exams_list|selectattr('exam_type', 'equalto', 'practical')|list|length }}
+                </div>
+                <div class="stat-label">Practical</div>
+            </div>
+            <div class="stat-card info">
+                <div class="stat-value">{{ exams_list|selectattr('exam_type', 'equalto', 'viva')|list|length }}</div>
+                <div class="stat-label">Viva</div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<style>
+    .table-responsive {
+        overflow-x: auto;
+    }
+
+    .form-group {
+        margin-bottom: 1rem;
+    }
+
+    .form-group label {
+        display: block;
+        margin-bottom: 0.25rem;
+        font-weight: 500;
+    }
+
+    .form-control {
+        width: 100%;
+        padding: 0.5rem;
+        border: 1px solid #D1D5DB;
+        border-radius: 4px;
+    }
+
+    .form-control:focus {
+        outline: none;
+        border-color: var(--primary);
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+</style>
+{% endblock %}

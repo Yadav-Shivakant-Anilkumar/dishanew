@@ -21,6 +21,77 @@
     </div>
 </div>
 
+<!-- Quick Actions Grid -->
+<div class="card mb-3">
+    <div class="card-header">
+        <h3>⚡ Quick Actions</h3>
+    </div>
+    <div class="card-body">
+        <div class="grid grid-3" style="gap: 1rem;">
+            <a href="{{ url_for('teacher.batches') }}" class="card"
+                style="margin: 0; padding: 1.5rem; text-align: center; text-decoration: none; color: inherit; border: 2px solid #667eea; transition: all 0.3s; cursor: pointer;">
+                <div style="font-size: 2.5rem; color: #667eea; margin-bottom: 0.5rem;">
+                    <i class="fas fa-chalkboard-teacher"></i>
+                </div>
+                <div style="font-weight: 600; font-size: 1rem;">View Batches</div>
+                <div style="font-size: 0.85rem; color: #6B7280; margin-top: 0.25rem;">All Assigned</div>
+            </a>
+
+            <a href="{{ url_for('teacher.attendance') }}" class="card"
+                style="margin: 0; padding: 1.5rem; text-align: center; text-decoration: none; color: inherit; border: 2px solid #10B981; transition: all 0.3s; cursor: pointer;">
+                <div style="font-size: 2.5rem; color: #10B981; margin-bottom: 0.5rem;">
+                    <i class="fas fa-user-check"></i>
+                </div>
+                <div style="font-weight: 600; font-size: 1rem;">Mark Attendance</div>
+                <div style="font-size: 0.85rem; color: #6B7280; margin-top: 0.25rem;">Take Daily Records</div>
+            </a>
+
+            <a href="{{ url_for('teacher.attendance_reports') }}" class="card"
+                style="margin: 0; padding: 1.5rem; text-align: center; text-decoration: none; color: inherit; border: 2px solid #3B82F6; transition: all 0.3s; cursor: pointer;">
+                <div style="font-size: 2.5rem; color: #3B82F6; margin-bottom: 0.5rem;">
+                    <i class="fas fa-file-alt"></i>
+                </div>
+                <div style="font-weight: 600; font-size: 1rem;">Attendance Reports</div>
+                <div style="font-size: 0.85rem; color: #6B7280; margin-top: 0.25rem;">View Analytics</div>
+            </a>
+
+            <a href="{{ url_for('teacher.exams') }}" class="card"
+                style="margin: 0; padding: 1.5rem; text-align: center; text-decoration: none; color: inherit; border: 2px solid #F59E0B; transition: all 0.3s; cursor: pointer;">
+                <div style="font-size: 2.5rem; color: #F59E0B; margin-bottom: 0.5rem;">
+                    <i class="fas fa-clipboard-list"></i>
+                </div>
+                <div style="font-weight: 600; font-size: 1rem;">Manage Exams</div>
+                <div style="font-size: 0.85rem; color: #6B7280; margin-top: 0.25rem;">Create & Grade</div>
+            </a>
+
+            <a href="{{ url_for('teacher.materials') }}" class="card"
+                style="margin: 0; padding: 1.5rem; text-align: center; text-decoration: none; color: inherit; border: 2px solid #8B5CF6; transition: all 0.3s; cursor: pointer;">
+                <div style="font-size: 2.5rem; color: #8B5CF6; margin-bottom: 0.5rem;">
+                    <i class="fas fa-folder-open"></i>
+                </div>
+                <div style="font-weight: 600; font-size: 1rem;">Learning Materials</div>
+                <div style="font-size: 0.85rem; color: #6B7280; margin-top: 0.25rem;">Upload Resources</div>
+            </a>
+
+            <a href="{{ url_for('teacher.dashboard') }}" class="card"
+                style="margin: 0; padding: 1.5rem; text-align: center; text-decoration: none; color: inherit; border: 2px solid #EC4899; transition: all 0.3s; cursor: pointer;">
+                <div style="font-size: 2.5rem; color: #EC4899; margin-bottom: 0.5rem;">
+                    <i class="fas fa-tachometer-alt"></i>
+                </div>
+                <div style="font-weight: 600; font-size: 1rem;">Dashboard</div>
+                <div style="font-size: 0.85rem; color: #6B7280; margin-top: 0.25rem;">Overview</div>
+            </a>
+        </div>
+    </div>
+</div>
+
+<style>
+    .card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+    }
+</style>
+
 <!-- My Batches -->
 <div class="card mb-3">
     <div class="card-header">

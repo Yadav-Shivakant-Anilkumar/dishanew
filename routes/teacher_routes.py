@@ -1,9 +1,70 @@
-from flask import Blueprint, render_template, request, redirect, url_for, session, flash
+from flask import Blueprint, render_template, request, redirect, url_for, session, flash, current_app
 from auth import role_required
 from database import execute_query
 from datetime import datetime, date
+import re
+import os
+import uuid
+from werkzeug.utils import secure_filename
 
 teacher_bp = Blueprint('teacher', __name__, url_prefix='/teacher')
+
+UPLOAD_FOLDER = 'static/uploads/materials'
+
+# Configuration for different material types
+UPLOAD_CONFIG = {
+    'document': {
+        'extensions': {'pdf', 'doc', 'docx', 'txt'},
+        'max_size': 2 * 1024 * 1024,  # 2MB
+        'max_files': 5
+    },
+    'presentation': {
+        'extensions': {'ppt', 'pptx'},
+        'max_size': 5 * 1024 * 1024,  # 5MB
+        'max_files': 2
+    },
+    'external_video': {  # "Video" in UI
+        'extensions': {'mp4', 'avi', 'mkv', 'mov'},
+        'max_size': 5 * 1024 * 1024,  # 5MB
+        'max_files': 5
+    }
+}
+
+def allowed_file(filename, allowed_extensions):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in allowed_extensions
+
+def get_unique_filename(filename):
+    ext = filename.rsplit('.', 1)[1].lower()
+    unique_name = f"{uuid.uuid4().hex}_{int(datetime.now().timestamp())}.{ext}"
+    return unique_name
+
+def extract_youtube_id(url):
+    """Extract YouTube video ID from various URL formats"""
+    # Patterns for: youtube.com/watch?v=ID, youtu.be/ID, youtube.com/embed/ID
+    patterns = [
+        r'(?:v=|\/)([0-9A-Za-z_-]{11}).*',
+        r'(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([^#\&\?]*).*'
+    ]
+    
+    for pattern in patterns:
+        match = re.search(pattern, url)
+        if match:
+            return match.group(1)
+    
+    return None
+
+@teacher_bp.app_template_filter('youtube_thumb')
+def youtube_thumb_filter(url):
+    """Jinja filter to get thumbnail URL"""
+    video_id = extract_youtube_id(url)
+    if video_id:
+        return f"https://img.youtube.com/vi/{video_id}/maxresdefault.jpg"
+    return None
+
+@teacher_bp.app_template_filter('youtube_id')
+def youtube_id_filter(url):
+    """Jinja filter to get video ID"""
+    return extract_youtube_id(url)
 
 @teacher_bp.route('/dashboard')
 @role_required('teacher')
@@ -110,39 +171,41 @@ def attendance():
         batch_id = request.form.get('batch_id')
         attendance_date = request.form.get('attendance_date')
         student_ids = request.form.getlist('student_ids')
-        statuses = request.form.getlist('statuses')
         
-        # Insert attendance records
-        for i, student_id in enumerate(student_ids):
-            status = statuses[i] if i < len(statuses) else 'absent'
+        # Process attendance for each student
+        for student_id in student_ids:
+            status = request.form.get(f'status_{student_id}')
+            remarks = request.form.get(f'remarks_{student_id}', '').strip()
             
-            # Check if attendance already exists
-            existing = execute_query(
-                """SELECT attendance_id FROM attendance
-                   WHERE batch_id = %s AND student_id = %s AND attendance_date = %s""",
-                (batch_id, student_id, attendance_date),
-                fetch_one=True
-            )
-            
-            if existing:
-                # Update existing
-                execute_query(
-                    """UPDATE attendance SET status = %s, marked_by = %s
-                       WHERE attendance_id = %s""",
-                    (status, session.get('user_id'), existing['attendance_id']),
-                    commit=True
+            # Only save if status is selected (not unmarked)
+            if status and status != 'unmarked':
+                # Check if attendance already exists
+                existing = execute_query(
+                    """SELECT attendance_id FROM attendance
+                       WHERE batch_id = %s AND student_id = %s AND attendance_date = %s""",
+                    (batch_id, student_id, attendance_date),
+                    fetch_one=True
                 )
-            else:
-                # Insert new
-                execute_query(
-                    """INSERT INTO attendance (batch_id, student_id, attendance_date, status, marked_by)
-                       VALUES (%s, %s, %s, %s, %s)""",
-                    (batch_id, student_id, attendance_date, status, session.get('user_id')),
-                    commit=True
-                )
+                
+                if existing:
+                    # Update existing
+                    execute_query(
+                        """UPDATE attendance SET status = %s, marked_by = %s, remarks = %s
+                           WHERE attendance_id = %s""",
+                        (status, session.get('user_id'), remarks if remarks else None, existing['attendance_id']),
+                        commit=True
+                    )
+                else:
+                    # Insert new
+                    execute_query(
+                        """INSERT INTO attendance (batch_id, student_id, attendance_date, status, marked_by, remarks)
+                           VALUES (%s, %s, %s, %s, %s, %s)""",
+                        (batch_id, student_id, attendance_date, status, session.get('user_id'), remarks if remarks else None),
+                        commit=True
+                    )
         
         flash('Attendance marked successfully!', 'success')
-        return redirect(url_for('teacher.attendance'))
+        return redirect(url_for('teacher.attendance', batch_id=batch_id, date=attendance_date))
     
     # Get teacher's batches for dropdown
     batches = execute_query(
@@ -175,14 +238,17 @@ def attendance():
         
         # Get existing attendance for the date
         attendance_records = execute_query(
-            """SELECT student_id, status FROM attendance
+            """SELECT student_id, status, remarks FROM attendance
                WHERE batch_id = %s AND attendance_date = %s""",
             (selected_batch, selected_date),
             fetch=True
         )
         
         for record in attendance_records:
-            existing_attendance[record['student_id']] = record['status']
+            existing_attendance[record['student_id']] = {
+                'status': record['status'],
+                'remarks': record['remarks']
+            }
     
     return render_template('teacher/attendance.html',
                          batches=batches,
@@ -190,6 +256,92 @@ def attendance():
                          selected_batch=selected_batch,
                          selected_date=selected_date,
                          existing_attendance=existing_attendance)
+
+@teacher_bp.route('/attendance/reports')
+@role_required('teacher')
+def attendance_reports():
+    """View attendance reports for assigned batches"""
+    teacher_id = session.get('teacher_id')
+    
+    # Get filter parameters
+    batch_id = request.args.get('batch_id', type=int)
+    date_from = request.args.get('date_from', '')
+    date_to = request.args.get('date_to', '')
+    
+    # Get teacher's batches for filter
+    batches = execute_query(
+        """SELECT b.batch_id, b.batch_name, c.course_name
+           FROM batches b
+           JOIN courses c ON b.course_id = c.course_id
+           WHERE b.teacher_id = %s
+           ORDER BY b.batch_name""",
+        (teacher_id,),
+        fetch=True
+    )
+    
+    # Build attendance summary query
+    attendance_summary = []
+    low_attendance_students = []
+    
+    if batch_id:
+        # Verify teacher has access to this batch
+        batch_check = execute_query(
+            "SELECT batch_id FROM batches WHERE batch_id = %s AND teacher_id = %s",
+            (batch_id, teacher_id),
+            fetch_one=True
+        )
+        
+        if batch_check:
+            # Get attendance summary for the batch
+            query = """
+                SELECT 
+                    s.student_id,
+                    s.enrollment_no,
+                    u.full_name,
+                    COUNT(a.attendance_id) as total_classes,
+                    SUM(CASE WHEN a.status IN ('present', 'late') THEN 1 ELSE 0 END) as attended,
+                    SUM(CASE WHEN a.status = 'present' THEN 1 ELSE 0 END) as present_count,
+                    SUM(CASE WHEN a.status = 'absent' THEN 1 ELSE 0 END) as absent_count,
+                    SUM(CASE WHEN a.status = 'late' THEN 1 ELSE 0 END) as late_count,
+                    SUM(CASE WHEN a.status = 'excused' THEN 1 ELSE 0 END) as excused_count,
+                    ROUND(SUM(CASE WHEN a.status IN ('present', 'late') THEN 1 ELSE 0 END) * 100.0 / NULLIF(COUNT(a.attendance_id), 0), 2) as attendance_percentage
+                FROM enrollments e
+                JOIN students s ON e.student_id = s.student_id
+                JOIN users u ON s.user_id = u.user_id
+                LEFT JOIN attendance a ON a.student_id = s.student_id AND a.batch_id = e.batch_id
+            """
+            
+            params = [batch_id]
+            query += " WHERE e.batch_id = %s AND e.status = 'active'"
+            
+            if date_from and date_to:
+                query += " AND a.attendance_date BETWEEN %s AND %s"
+                params.extend([date_from, date_to])
+            elif date_from:
+                query += " AND a.attendance_date >= %s"
+                params.append(date_from)
+            elif date_to:
+                query += " AND a.attendance_date <= %s"
+                params.append(date_to)
+            
+            query += " GROUP BY s.student_id, s.enrollment_no, u.full_name ORDER BY u.full_name"
+            
+            attendance_summary = execute_query(query, tuple(params), fetch=True)
+            
+            # Identify low attendance students (< 60%)
+            low_attendance_students = [
+                student for student in attendance_summary 
+                if student['attendance_percentage'] is not None and student['attendance_percentage'] < 60
+            ]
+    
+    return render_template('teacher/attendance_reports.html',
+                         batches=batches,
+                         attendance_summary=attendance_summary,
+                         low_attendance_students=low_attendance_students,
+                         selected_batch=batch_id,
+                         date_from=date_from,
+                         date_to=date_to)
+
 
 @teacher_bp.route('/materials', methods=['GET', 'POST'])
 @role_required('teacher')
@@ -203,20 +355,94 @@ def materials():
         title = request.form.get('title', '').strip()
         description = request.form.get('description', '').strip()
         material_type = request.form.get('material_type', 'document')
+        upload_type = request.form.get('upload_type', 'link') # link or file
         
-        # For simplicity, storing file path (in real app, handle file upload)
-        file_path = request.form.get('file_path', '').strip()
+        # Determine file path based on upload type
+        file_path = ''
         
-        execute_query(
-            """INSERT INTO learning_materials (course_id, batch_id, title, description,
-               material_type, file_path, uploaded_by)
-               VALUES (%s, %s, %s, %s, %s, %s, %s)""",
-            (course_id, batch_id, title, description, material_type, file_path, session.get('user_id')),
-            commit=True
-        )
-        
-        flash('Learning material uploaded successfully!', 'success')
-        return redirect(url_for('teacher.materials'))
+        # Check if type supports file uploads
+        if upload_type == 'file' and material_type in UPLOAD_CONFIG:
+            config = UPLOAD_CONFIG[material_type]
+            
+            # Handle File Uploads (Multiple)
+            files = request.files.getlist('material_files')
+            
+            # Filter out empty file objects
+            valid_files = [f for f in files if f.filename]
+            
+            if not valid_files:
+                flash('No files selected for upload.', 'danger')
+                return redirect(url_for('teacher.materials'))
+                
+            if len(valid_files) > config['max_files']:
+                flash(f'You can upload a maximum of {config["max_files"]} files for {material_type}.', 'warning')
+                return redirect(url_for('teacher.materials'))
+
+            saved_count = 0
+            for file in valid_files:
+                if file and allowed_file(file.filename, config['extensions']):
+                    # Check file size (approximate, reading content length)
+                    file.seek(0, os.SEEK_END)
+                    file_length = file.tell()
+                    file.seek(0)
+                    
+                    if file_length > config['max_size']:
+                        limit_mb = int(config['max_size'] / (1024*1024))
+                        flash(f'File "{file.filename}" exceeds the {limit_mb}MB limit. Skipped.', 'warning')
+                        continue
+                        
+                    filename = secure_filename(file.filename)
+                    unique_filename = get_unique_filename(filename)
+                    
+                    # Ensure directory exists
+                    full_upload_path = os.path.join(current_app.root_path, UPLOAD_FOLDER)
+                    os.makedirs(full_upload_path, exist_ok=True)
+                    
+                    save_path = os.path.join(full_upload_path, unique_filename)
+                    file.save(save_path)
+                    
+                    # Store relative path in DB
+                    db_file_path = f"/{UPLOAD_FOLDER}/{unique_filename}"
+                    
+                    # Insert record for each file
+                    # Append index to title if multiple files
+                    current_title = title
+                    if len(valid_files) > 1:
+                         current_title = f"{title} ({saved_count + 1})"
+
+                    execute_query(
+                        """INSERT INTO learning_materials (course_id, batch_id, title, description,
+                           material_type, file_path, uploaded_by)
+                           VALUES (%s, %s, %s, %s, %s, %s, %s)""",
+                        (course_id, batch_id, current_title, description, material_type, db_file_path, session.get('user_id')),
+                        commit=True
+                    )
+                    saved_count += 1
+                else:
+                    exts = ", ".join(config['extensions'])
+                    flash(f'File "{file.filename}" has an invalid extension. Only {exts} allowed.', 'warning')
+            
+            if saved_count > 0:
+                flash(f'{saved_count} file(s) uploaded successfully!', 'success')
+            else:
+                flash('No valid files were uploaded.', 'warning')
+                
+            return redirect(url_for('teacher.materials'))
+            
+        else:
+            # Handle Link/URL (or unsupported file type defaulting to link?)
+            file_path = request.form.get('file_path', '').strip()
+            
+            execute_query(
+                """INSERT INTO learning_materials (course_id, batch_id, title, description,
+                   material_type, file_path, uploaded_by)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s)""",
+                (course_id, batch_id, title, description, material_type, file_path, session.get('user_id')),
+                commit=True
+            )
+            
+            flash('Learning material added successfully!', 'success')
+            return redirect(url_for('teacher.materials'))
     
     # Get courses taught by teacher
     courses = execute_query(
@@ -241,6 +467,116 @@ def materials():
     )
     
     return render_template('teacher/materials.html', courses=courses, materials=uploaded_materials)
+
+@teacher_bp.route('/material/<int:material_id>/delete', methods=['POST'])
+@role_required('teacher')
+def delete_material(material_id):
+    """Delete a learning material"""
+    # Verify ownership
+    material = execute_query(
+        "SELECT material_id, file_path FROM learning_materials WHERE material_id = %s AND uploaded_by = %s",
+        (material_id, session.get('user_id')),
+        fetch_one=True
+    )
+    
+    if not material:
+        flash('Material not found or access denied.', 'danger')
+        return redirect(url_for('teacher.materials'))
+    
+    # Delete physical file if it exists and is local (starts with /static/uploads)
+    file_path = material['file_path']
+    if file_path and file_path.startswith('/static/uploads/'):
+        # Construct absolute path
+        # Remove leading slash for os.path.join
+        relative_path = file_path.lstrip('/')
+        full_path = os.path.join(current_app.root_path, relative_path)
+        
+        try:
+            if os.path.exists(full_path):
+                os.remove(full_path)
+        except Exception as e:
+            # Log error but continue with DB deletion
+            print(f"Error deleting file {full_path}: {e}")
+
+    execute_query(
+        "DELETE FROM learning_materials WHERE material_id = %s",
+        (material_id,),
+        commit=True
+    )
+    
+    flash('Material deleted successfully!', 'success')
+    return redirect(url_for('teacher.materials'))
+
+@teacher_bp.route('/material/<int:material_id>/edit', methods=['POST'])
+@role_required('teacher')
+def edit_material(material_id):
+    """Edit a learning material"""
+    # Verify ownership
+    material = execute_query(
+        "SELECT material_id, file_path FROM learning_materials WHERE material_id = %s AND uploaded_by = %s",
+        (material_id, session.get('user_id')),
+        fetch_one=True
+    )
+    
+    if not material:
+        flash('Material not found or access denied.', 'danger')
+        return redirect(url_for('teacher.materials'))
+    
+    title = request.form.get('title', '').strip()
+    course_id = request.form.get('course_id')
+    batch_id = request.form.get('batch_id') or None
+    material_type = request.form.get('material_type')
+    description = request.form.get('description', '').strip()
+    
+    # Handle File Replacement if provided
+    upload_type = request.form.get('upload_type', 'link')
+    new_file_path = material['file_path'] # Default to existing
+    
+    if material_type == 'document' and upload_type == 'file':
+         file = request.files.get('material_file') # Single file edit for now
+         if file and file.filename and allowed_file(file.filename):
+             # 1. Delete old file if it was local
+             old_path = material['file_path']
+             if old_path and old_path.startswith('/static/uploads/'):
+                 relative_path = old_path.lstrip('/')
+                 full_path = os.path.join(current_app.root_path, relative_path)
+                 try:
+                     if os.path.exists(full_path):
+                         os.remove(full_path)
+                 except Exception:
+                     pass
+            
+             # 2. Save new file
+             filename = secure_filename(file.filename)
+             unique_filename = get_unique_filename(filename)
+             full_upload_path = os.path.join(current_app.root_path, UPLOAD_FOLDER)
+             os.makedirs(full_upload_path, exist_ok=True)
+             save_path = os.path.join(full_upload_path, unique_filename)
+             
+             # Check size
+             file.seek(0, os.SEEK_END)
+             if file.tell() <= MAX_CONTENT_LENGTH:
+                 file.seek(0)
+                 file.save(save_path)
+                 new_file_path = f"/{UPLOAD_FOLDER}/{unique_filename}"
+             else:
+                 flash('New file exceeds 2MB limit. Kept old file.', 'warning')
+    
+    elif upload_type == 'link':
+         # If switching to link or updating link
+         new_file_path = request.form.get('file_path', '').strip()
+    
+    execute_query(
+        """UPDATE learning_materials 
+           SET title = %s, course_id = %s, batch_id = %s, 
+               material_type = %s, file_path = %s, description = %s
+           WHERE material_id = %s""",
+        (title, course_id, batch_id, material_type, new_file_path, description, material_id),
+        commit=True
+    )
+    
+    flash('Material updated successfully!', 'success')
+    return redirect(url_for('teacher.materials'))
 
 @teacher_bp.route('/exams', methods=['GET', 'POST'])
 @role_required('teacher')

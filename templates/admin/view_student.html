@@ -190,6 +190,63 @@
     </div>
 </div>
 
+<!-- Payment Transaction History -->
+<div class="card mb-3">
+    <div class="card-header">
+        <h3><i class="fas fa-receipt"></i> Payment Transaction History</h3>
+    </div>
+    <div class="card-body">
+        {% if transactions %}
+        <div style="overflow-x: auto;">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Receipt No</th>
+                        <th>Course</th>
+                        <th>Amount</th>
+                        <th>Payment Date</th>
+                        <th>Payment Method</th>
+                        <th>Transaction Ref</th>
+                        <th>Received By</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for transaction in transactions %}
+                    <tr>
+                        <td><code>{{ transaction.receipt_no }}</code></td>
+                        <td>{{ transaction.course_name }}</td>
+                        <td><strong>₹{{ "%.2f"|format(transaction.amount) }}</strong></td>
+                        <td>{{ transaction.payment_date }}</td>
+                        <td>
+                            <span class="badge badge-info">
+                                {% if transaction.payment_method == 'cash' %}💵 Cash
+                                {% elif transaction.payment_method == 'upi' %}📱 UPI
+                                {% elif transaction.payment_method == 'card' %}💳 Card
+                                {% elif transaction.payment_method == 'netbanking' %}🏦 Net Banking
+                                {% elif transaction.payment_method == 'cheque' %}📝 Cheque
+                                {% else %}{{ transaction.payment_method }}
+                                {% endif %}
+                            </span>
+                        </td>
+                        <td>{{ transaction.transaction_ref or '-' }}</td>
+                        <td>{{ transaction.received_by_name }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot>
+                    <tr style="font-weight: bold; background-color: #f8f9fa;">
+                        <td colspan="2" class="text-right">Total Paid:</td>
+                        <td colspan="5">₹{{ "%.2f"|format(transactions|sum(attribute='amount')) }}</td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-muted">No payment transactions found.</p>
+        {% endif %}
+    </div>
+</div>
+
 <!-- Certificates -->
 <div class="card mb-3">
     <div class="card-header">

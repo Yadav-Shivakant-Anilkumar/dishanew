@@ -1,0 +1,158 @@
+{% extends "base.html" %}
+
+{% block title %}Enter Marks - Disha Computer Classes{% endblock %}
+
+{% block content %}
+<div class="mb-3">
+    <a href="{{ url_for('teacher.exams') }}" class="btn btn-secondary btn-sm">
+        <i class="fas fa-arrow-left"></i> Back to Exams
+    </a>
+</div>
+
+<h1 class="mb-3">📝 Enter Marks</h1>
+
+<!-- Exam Info -->
+<div class="card mb-3">
+    <div class="card-header">
+        <h3>📋 {{ exam.exam_name }}</h3>
+    </div>
+    <div class="card-body">
+        <div class="grid grid-4">
+            <p><strong>Course:</strong> {{ exam.course_name }}</p>
+            <p><strong>Batch:</strong> {{ exam.batch_name }}</p>
+            <p><strong>Exam Type:</strong> <span class="badge badge-primary">{{ exam.exam_type }}</span></p>
+            <p><strong>Date:</strong> {{ exam.exam_date }}</p>
+            <p><strong>Total Marks:</strong> {{ exam.total_marks }}</p>
+            <p><strong>Passing Marks:</strong> {{ exam.passing_marks }}</p>
+            <p><strong>Duration:</strong> {{ exam.duration_minutes }} minutes</p>
+            {% if exam.description %}
+            <p><strong>Description:</strong> {{ exam.description }}</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Enter Marks Form -->
+<div class="card">
+    <div class="card-header">
+        <h3>✍️ Student Marks</h3>
+    </div>
+    <div class="card-body">
+        {% if students %}
+        <form method="POST" action="{{ url_for('teacher.exams') }}">
+            <input type="hidden" name="action" value="enter_marks">
+            <input type="hidden" name="exam_id" value="{{ exam.exam_id }}">
+
+            <div class="table-responsive">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Enrollment No</th>
+                            <th>Student Name</th>
+                            <th>Marks Obtained (out of {{ exam.total_marks }})</th>
+                            <th>Current Grade</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for student in students %}
+                        <tr>
+                            <td><strong>{{ student.enrollment_no }}</strong></td>
+                            <td>{{ student.full_name }}</td>
+                            <td>
+                                <input type="hidden" name="student_ids" value="{{ student.student_id }}">
+                                <input type="number" name="marks" class="form-control" min="0"
+                                    max="{{ exam.total_marks }}" value="{{ student.marks_obtained or '' }}"
+                                    placeholder="0-{{ exam.total_marks }}" style="width: 150px;">
+                            </td>
+                            <td>
+                                {% if student.grade %}
+                                <span
+                                    class="badge badge-{% if student.grade in ['A+', 'A'] %}success{% elif student.grade in ['B+', 'B'] %}primary{% elif student.grade == 'C' %}warning{% else %}danger{% endif %}">
+                                    {{ student.grade }}
+                                </span>
+                                {% else %}
+                                <span class="text-muted">Not graded</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if student.result_status %}
+                                <span
+                                    class="badge badge-{{ 'success' if student.result_status == 'pass' else 'danger' }}">
+                                    {{ student.result_status }}
+                                </span>
+                                {% else %}
+                                <span class="text-muted">Pending</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="mt-3">
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-save"></i> Save All Marks
+                </button>
+                <a href="{{ url_for('teacher.exams') }}" class="btn btn-secondary">
+                    Cancel
+                </a>
+            </div>
+        </form>
+        {% else %}
+        <div style="text-align: center; padding: 3rem 1rem;">
+            <i class="fas fa-users-slash" style="font-size: 4rem; color: #D1D5DB; margin-bottom: 1rem;"></i>
+            <p class="text-muted">No students enrolled in this batch</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Grading Scale -->
+<div class="card mt-3">
+    <div class="card-header">
+        <h3>📊 Grading Scale</h3>
+    </div>
+    <div class="card-body">
+        <div class="grid grid-6">
+            <div class="stat-card success">
+                <div class="stat-label">A+ (90-100%)</div>
+            </div>
+            <div class="stat-card success">
+                <div class="stat-label">A (80-89%)</div>
+            </div>
+            <div class="stat-card primary">
+                <div class="stat-label">B+ (70-79%)</div>
+            </div>
+            <div class="stat-card primary">
+                <div class="stat-label">B (60-69%)</div>
+            </div>
+            <div class="stat-card warning">
+                <div class="stat-label">C (50-59%)</div>
+            </div>
+            <div class="stat-card danger">
+                <div class="stat-label">F (Below 50%)</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .table-responsive {
+        overflow-x: auto;
+    }
+
+    .form-control {
+        padding: 0.5rem;
+        border: 1px solid #D1D5DB;
+        border-radius: 4px;
+    }
+
+    .form-control:focus {
+        outline: none;
+        border-color: var(--primary);
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+</style>
+{% endblock %}

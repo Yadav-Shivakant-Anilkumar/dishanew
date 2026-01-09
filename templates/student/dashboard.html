@@ -44,6 +44,91 @@
     </div>
 </div>
 
+<!-- Quick Actions Grid -->
+<div class="card mb-3" style="padding: 1.25rem;">
+    <h3 style="margin: 0 0 1rem; font-size: 1.25rem;">⚡ Quick Actions</h3>
+    <div class="grid grid-4" style="gap: 1rem;">
+        <a href="{{ url_for('student.enroll') }}" class="card"
+            style="margin: 0; padding: 1.5rem; text-align: center; text-decoration: none; color: inherit; border: 2px solid #667eea; transition: all 0.3s; cursor: pointer;">
+            <div style="font-size: 2.5rem; color: #667eea; margin-bottom: 0.5rem;">
+                <i class="fas fa-plus-circle"></i>
+            </div>
+            <div style="font-weight: 600; font-size: 1rem;">Enroll in Course</div>
+            <div style="font-size: 0.85rem; color: #6B7280; margin-top: 0.25rem;">Browse & Join</div>
+        </a>
+
+        <a href="{{ url_for('student.courses') }}" class="card"
+            style="margin: 0; padding: 1.5rem; text-align: center; text-decoration: none; color: inherit; border: 2px solid #10B981; transition: all 0.3s; cursor: pointer;">
+            <div style="font-size: 2.5rem; color: #10B981; margin-bottom: 0.5rem;">
+                <i class="fas fa-book-open"></i>
+            </div>
+            <div style="font-weight: 600; font-size: 1rem;">My Courses</div>
+            <div style="font-size: 0.85rem; color: #6B7280; margin-top: 0.25rem;">View Enrolled</div>
+        </a>
+
+        <a href="{{ url_for('student.attendance') }}" class="card"
+            style="margin: 0; padding: 1.5rem; text-align: center; text-decoration: none; color: inherit; border: 2px solid #3B82F6; transition: all 0.3s; cursor: pointer;">
+            <div style="font-size: 2.5rem; color: #3B82F6; margin-bottom: 0.5rem;">
+                <i class="fas fa-check-circle"></i>
+            </div>
+            <div style="font-weight: 600; font-size: 1rem;">Attendance</div>
+            <div style="font-size: 0.85rem; color: #6B7280; margin-top: 0.25rem;">View Records</div>
+        </a>
+
+        <a href="{{ url_for('student.results') }}" class="card"
+            style="margin: 0; padding: 1.5rem; text-align: center; text-decoration: none; color: inherit; border: 2px solid #8B5CF6; transition: all 0.3s; cursor: pointer;">
+            <div style="font-size: 2.5rem; color: #8B5CF6; margin-bottom: 0.5rem;">
+                <i class="fas fa-chart-line"></i>
+            </div>
+            <div style="font-weight: 600; font-size: 1rem;">Results</div>
+            <div style="font-size: 0.85rem; color: #6B7280; margin-top: 0.25rem;">Check Scores</div>
+        </a>
+
+        <a href="{{ url_for('student.fees') }}" class="card"
+            style="margin: 0; padding: 1.5rem; text-align: center; text-decoration: none; color: inherit; border: 2px solid #F59E0B; transition: all 0.3s; cursor: pointer;">
+            <div style="font-size: 2.5rem; color: #F59E0B; margin-bottom: 0.5rem;">
+                <i class="fas fa-money-bill-wave"></i>
+            </div>
+            <div style="font-weight: 600; font-size: 1rem;">Pay Fees</div>
+            <div style="font-size: 0.85rem; color: #6B7280; margin-top: 0.25rem;">Manage Payments</div>
+        </a>
+
+        <a href="{{ url_for('student.materials') }}" class="card"
+            style="margin: 0; padding: 1.5rem; text-align: center; text-decoration: none; color: inherit; border: 2px solid#EC4899; transition: all 0.3s; cursor: pointer;">
+            <div style="font-size: 2.5rem; color: #EC4899; margin-bottom: 0.5rem;">
+                <i class="fas fa-folder-open"></i>
+            </div>
+            <div style="font-weight: 600; font-size: 1rem;">Materials</div>
+            <div style="font-size: 0.85rem; color: #6B7280; margin-top: 0.25rem;">Access Resources</div>
+        </a>
+
+        <a href="{{ url_for('student.certificates') }}" class="card"
+            style="margin: 0; padding: 1.5rem; text-align: center; text-decoration: none; color: inherit; border: 2px solid #14B8A6; transition: all 0.3s; cursor: pointer;">
+            <div style="font-size: 2.5rem; color: #14B8A6; margin-bottom: 0.5rem;">
+                <i class="fas fa-certificate"></i>
+            </div>
+            <div style="font-weight: 600; font-size: 1rem;">Certificates</div>
+            <div style="font-size: 0.85rem; color: #6B7280; margin-top: 0.25rem;">Download</div>
+        </a>
+
+        <a href="{{ url_for('student.feedback') }}" class="card"
+            style="margin: 0; padding: 1.5rem; text-align: center; text-decoration: none; color: inherit; border: 2px solid #EF4444; transition: all 0.3s; cursor: pointer;">
+            <div style="font-size: 2.5rem; color: #EF4444; margin-bottom: 0.5rem;">
+                <i class="fas fa-comment-dots"></i>
+            </div>
+            <div style="font-weight: 600; font-size: 1rem;">Feedback</div>
+            <div style="font-size: 0.85rem; color: #6B7280; margin-top: 0.25rem;">Submit Review</div>
+        </a>
+    </div>
+</div>
+
+<style>
+    .card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+    }
+</style>
+
 <!-- My Courses -->
 <div class="card mb-3" style="padding: 1.25rem;">
     <div class="d-flex justify-between align-center" style="margin-bottom: 1rem;">

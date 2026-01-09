@@ -30,7 +30,18 @@
                         <p class="mb-2"><strong>📅 Start Date:</strong> {{ batch.start_date }}</p>
                         <p class="mb-2"><strong>⏰ Schedule:</strong> {{ batch.schedule }}</p>
                         <p class="mb-2"><strong>🕐 Timing:</strong> {{ batch.timing }}</p>
-                        <p class="mb-2"><strong>⏳ Duration:</strong> {{ batch.duration_months }} months</p>
+                        <p class="mb-2"><strong>⏳ Duration:</strong>
+                            {% if batch.duration_months == 0 %}
+                            {{ batch.duration_days }} day{{ 's' if batch.duration_days != 1 else '' }}
+                            {% elif batch.duration_days % 30 == 0 or (batch.duration_days - batch.duration_months * 30)
+                            == 0 %}
+                            {{ batch.duration_months }} month{{ 's' if batch.duration_months != 1 else '' }}
+                            {% else %}
+                            {% set remaining_days = batch.duration_days - (batch.duration_months * 30) %}
+                            {{ batch.duration_months }} month{{ 's' if batch.duration_months != 1 else '' }} {{
+                            remaining_days }} day{{ 's' if remaining_days != 1 else '' }}
+                            {% endif %}
+                        </p>
                         <p class="mb-2"><strong>💰 Fees:</strong> ₹{{ "%.2f"|format(batch.fees) }}</p>
                         <p class="mb-2"><strong>🪑 Available Seats:</strong>
                             <span

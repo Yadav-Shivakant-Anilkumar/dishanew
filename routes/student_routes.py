@@ -143,7 +143,9 @@ def enroll():
     
     # Get available batches
     available_batches = execute_query(
-        """SELECT b.*, c.course_name, c.description, c.fees, c.duration_months,
+        """SELECT b.*, c.course_name, c.description, c.fees,
+               DATEDIFF(b.end_date, b.start_date) as duration_days,
+               TIMESTAMPDIFF(MONTH, b.start_date, b.end_date) as duration_months,
                (b.max_students - b.current_students) as available_seats,
                u.full_name as teacher_name
            FROM batches b
@@ -286,10 +288,12 @@ def attendance():
     attendance_data = execute_query(
         """SELECT b.batch_id, b.batch_name, c.course_name,
                COUNT(a.attendance_id) as total_classes,
+               SUM(CASE WHEN a.status IN ('present', 'late') THEN 1 ELSE 0 END) as attended,
                SUM(CASE WHEN a.status = 'present' THEN 1 ELSE 0 END) as present_count,
                SUM(CASE WHEN a.status = 'absent' THEN 1 ELSE 0 END) as absent_count,
                SUM(CASE WHEN a.status = 'late' THEN 1 ELSE 0 END) as late_count,
-               ROUND(SUM(CASE WHEN a.status = 'present' THEN 1 ELSE 0 END) * 100.0 / COUNT(a.attendance_id), 2) as attendance_percentage
+               SUM(CASE WHEN a.status = 'excused' THEN 1 ELSE 0 END) as excused_count,
+               ROUND(SUM(CASE WHEN a.status IN ('present', 'late') THEN 1 ELSE 0 END) * 100.0 / NULLIF(COUNT(a.attendance_id), 0), 2) as attendance_percentage
            FROM enrollments e
            JOIN batches b ON e.batch_id = b.batch_id
            JOIN courses c ON b.course_id = c.course_id
@@ -309,7 +313,7 @@ def attendance():
            JOIN courses c ON b.course_id = c.course_id
            WHERE a.student_id = %s
            ORDER BY a.attendance_date DESC
-           LIMIT 20""",
+           LIMIT 30""",
         (student_id,),
         fetch=True
     )
@@ -404,7 +408,7 @@ def fees():
 @student_bp.route('/fees/pay/<int:fee_id>', methods=['GET', 'POST'])
 @role_required('student')
 def pay_fee(fee_id):
-    """Make fee payment"""
+    """Make fee payment with proper validation and error handling"""
     student_id = session.get('student_id')
     
     # Verify fee belongs to student
@@ -417,21 +421,75 @@ def pay_fee(fee_id):
     )
     
     if not fee:
-        flash('Fee record not found.', 'danger')
+        flash('Fee record not found or you do not have permission to access it.', 'danger')
         return redirect(url_for('student.fees'))
     
     if request.method == 'POST':
-        amount = float(request.form.get('amount', 0))
-        payment_method = request.form.get('payment_method', 'cash')
-        transaction_ref = request.form.get('transaction_ref', '').strip()
-        
-        if amount > 0 and amount <= fee['due_amount']:
-            # Generate receipt number
-            import random
-            receipt_no = f"RCP{datetime.now().year}{random.randint(10000, 99999)}"
+        try:
+            # Get and validate payment amount
+            amount_str = request.form.get('amount', '').strip()
+            if not amount_str:
+                flash('Please enter a payment amount.', 'danger')
+                return render_template('student/pay_fee.html', fee=fee)
             
-            # Record transaction
-            execute_query(
+            try:
+                amount = float(amount_str)
+                # Round to 2 decimal places for currency
+                amount = round(amount, 2)
+            except ValueError:
+                flash('Invalid amount format. Please enter a valid number.', 'danger')
+                return render_template('student/pay_fee.html', fee=fee)
+            
+            # Validate amount is positive
+            if amount <= 0:
+                flash('Payment amount must be greater than zero.', 'danger')
+                return render_template('student/pay_fee.html', fee=fee)
+            
+            # Validate amount doesn't exceed due amount
+            if amount > fee['due_amount']:
+                flash(f'Payment amount cannot exceed due amount of ₹{fee["due_amount"]:.2f}', 'danger')
+                return render_template('student/pay_fee.html', fee=fee)
+            
+            # Validate payment method
+            payment_method = request.form.get('payment_method', '').strip().lower()
+            valid_methods = ['cash', 'upi', 'card', 'netbanking', 'cheque']
+            if payment_method not in valid_methods:
+                flash('Invalid payment method selected.', 'danger')
+                return render_template('student/pay_fee.html', fee=fee)
+            
+            # Get transaction reference (optional)
+            transaction_ref = request.form.get('transaction_ref', '').strip()
+            if transaction_ref and len(transaction_ref) > 100:
+                transaction_ref = transaction_ref[:100]  # Truncate if too long
+            
+            # Generate unique receipt number
+            import random
+            import time
+            max_attempts = 5
+            receipt_no = None
+            
+            for attempt in range(max_attempts):
+                # Generate receipt with timestamp component for better uniqueness
+                timestamp = int(time.time() * 1000) % 1000000
+                random_num = random.randint(1000, 9999)
+                receipt_no = f"RCP{datetime.now().year}{timestamp}{random_num}"
+                
+                # Check if receipt number already exists
+                existing = execute_query(
+                    "SELECT transaction_id FROM fee_transactions WHERE receipt_no = %s",
+                    (receipt_no,),
+                    fetch_one=True
+                )
+                
+                if not existing:
+                    break  # Unique receipt number found
+                
+                if attempt == max_attempts - 1:
+                    flash('Unable to generate receipt number. Please try again.', 'danger')
+                    return render_template('student/pay_fee.html', fee=fee)
+            
+            # Record payment transaction
+            transaction_id = execute_query(
                 """INSERT INTO fee_transactions (fee_id, amount, payment_date, payment_method,
                    transaction_ref, receipt_no, received_by)
                    VALUES (%s, %s, CURDATE(), %s, %s, %s, %s)""",
@@ -439,23 +497,52 @@ def pay_fee(fee_id):
                 commit=True
             )
             
-            # Update fee record
-            new_paid = fee['paid_amount'] + amount
-            new_due = fee['total_amount'] - new_paid
-            new_status = 'paid' if new_due == 0 else 'partial'
+            # Check if transaction was created (None means error, >= 0 means success)
+            if transaction_id is None:
+                flash('Failed to record payment transaction. Please try again.', 'danger')
+                return render_template('student/pay_fee.html', fee=fee)
             
-            execute_query(
+            # Update fee record with new amounts
+            new_paid = round(fee['paid_amount'] + amount, 2)
+            new_due = round(fee['total_amount'] - new_paid, 2)
+            
+            # Ensure due amount is not negative (handle floating point precision)
+            if new_due < 0.01:
+                new_due = 0.00
+            
+            # Determine payment status
+            if new_due == 0:
+                new_status = 'paid'
+            elif new_paid > 0:
+                new_status = 'partial'
+            else:
+                new_status = 'pending'
+            
+            # Update fee record
+            fee_updated = execute_query(
                 """UPDATE fees SET paid_amount = %s, due_amount = %s,
-                   payment_status = %s WHERE fee_id = %s""",
+                   payment_status = %s, updated_at = CURRENT_TIMESTAMP 
+                   WHERE fee_id = %s""",
                 (new_paid, new_due, new_status, fee_id),
                 commit=True
             )
             
-            flash(f'Payment of ₹{amount} recorded successfully! Receipt No: {receipt_no}', 'success')
+            # Check if fee was updated (None means error, >= 0 means success)
+            if fee_updated is None:
+                flash('Failed to update fee record. Please contact administration.', 'danger')
+                return render_template('student/pay_fee.html', fee=fee)
+            
+            # Success message
+            flash(f'✅ Payment of ₹{amount:.2f} recorded successfully! Receipt No: {receipt_no}', 'success')
             return redirect(url_for('student.fees'))
-        else:
-            flash('Invalid payment amount.', 'danger')
+            
+        except Exception as e:
+            # Log the error (in production, use proper logging)
+            print(f"Payment processing error: {str(e)}")
+            flash('An error occurred while processing your payment. Please try again or contact administration.', 'danger')
+            return render_template('student/pay_fee.html', fee=fee)
     
+    # GET request - show payment form
     return render_template('student/pay_fee.html', fee=fee)
 
 @student_bp.route('/feedback', methods=['GET', 'POST'])

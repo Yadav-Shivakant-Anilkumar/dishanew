@@ -7,9 +7,9 @@
     <h1>💳 Pay Fee</h1>
 </div>
 
-<div class="grid grid-2 gap-3">
+<div class="payment-container">
     <!-- Fee Details -->
-    <div class="card" style="margin: 0; padding: var(--spacing-lg);">
+    <div class="card fee-details-card">
         <div class="card-header">
             <h3 class="mb-0">📋 Fee Details</h3>
         </div>
@@ -57,18 +57,20 @@
     </div>
 
     <!-- Payment Form -->
-    <div class="card" style="margin: 0; padding: var(--spacing-lg);">
+    <div class="card payment-form-card">
         <div class="card-header">
             <h3 class="mb-0">💰 Make Payment</h3>
         </div>
         <div class="card-body">
             {% if fee.due_amount > 0 %}
-            <form method="POST" action="{{ url_for('student.pay_fee', fee_id=fee.fee_id) }}">
+            <form method="POST" action="{{ url_for('student.pay_fee', fee_id=fee.fee_id) }}" id="paymentForm"
+                novalidate>
                 <div class="form-group">
                     <label for="amount">Payment Amount *</label>
                     <input type="number" name="amount" id="amount" class="form-control" step="0.01" min="0.01"
                         max="{{ fee.due_amount }}" value="{{ fee.due_amount }}" required>
                     <small class="text-muted">Maximum: ₹{{ "%.2f"|format(fee.due_amount) }}</small>
+                    <div class="invalid-feedback" id="amountError"></div>
                 </div>
 
                 <div class="form-group">
@@ -80,17 +82,21 @@
                         <option value="netbanking">🏦 Net Banking</option>
                         <option value="cheque">📝 Cheque</option>
                     </select>
+                    <div class="invalid-feedback" id="methodError"></div>
                 </div>
 
                 <div class="form-group mb-4">
                     <label for="transaction_ref">Transaction Reference (Optional)</label>
                     <input type="text" name="transaction_ref" id="transaction_ref" class="form-control"
-                        placeholder="UPI ID, Transaction ID, Cheque Number, etc.">
+                        placeholder="UPI ID, Transaction ID, Cheque Number, etc." maxlength="100">
                     <small class="text-muted">Enter transaction details for digital payments</small>
                 </div>
 
-                <button type="submit" class="btn btn-primary btn-block mb-2">
-                    💳 Process Payment
+                <button type="submit" class="btn btn-primary btn-block mb-2" id="submitBtn">
+                    <span id="btnText">💳 Process Payment</span>
+                    <span id="btnLoader" class="btn-loader" style="display: none;">
+                        <span class="spinner"></span> Processing...
+                    </span>
                 </button>
                 <a href="{{ url_for('student.fees') }}" class="btn btn-outline btn-block">
                     Cancel
@@ -114,24 +120,49 @@
         <h3 class="mb-0">ℹ️ Payment Information</h3>
     </div>
     <div class="card-body">
-        <ul style="padding-left: 1.5rem;">
-            <li class="mb-2">You can make full or partial payments.</li>
-            <li class="mb-2">A receipt will be generated automatically after successful payment.</li>
-            <li class="mb-2">For online payments (UPI, Card, Net Banking), please enter the transaction reference.</li>
-            <li class="mb-2">For cash or cheque payments, please submit them at the office and then record the payment
-                here.</li>
-            <li class="mb-2">Keep your receipt safe for future reference.</li>
-            <li class="mb-0">Contact administration for any payment-related queries.</li>
+        <ul class="payment-info-list">
+            <li>You can make full or partial payments.</li>
+            <li>A receipt will be generated automatically after successful payment.</li>
+            <li>For online payments (UPI, Card, Net Banking), please enter the transaction reference.</li>
+            <li>For cash or cheque payments, please submit them at the office and then record the payment here.</li>
+            <li>Keep your receipt safe for future reference.</li>
+            <li>Contact administration for any payment-related queries.</li>
         </ul>
     </div>
 </div>
 
 <style>
+    /* Payment Container - Responsive Grid */
+    .payment-container {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 1.5rem;
+        margin-bottom: 1.5rem;
+    }
+
+    /* Desktop and Tablet - Two Column Layout */
+    @media (min-width: 768px) {
+        .payment-container {
+            grid-template-columns: 1fr 1fr;
+        }
+    }
+
+    /* Fee Details Styling */
+    .fee-details-card,
+    .payment-form-card {
+        margin: 0;
+        padding: var(--spacing-lg);
+        height: fit-content;
+    }
+
     .fee-detail-row {
         display: flex;
         justify-content: space-between;
+        align-items: center;
         padding: 0.75rem 0;
         border-bottom: 1px solid #e0e0e0;
+        flex-wrap: wrap;
+        gap: 0.5rem;
     }
 
     .fee-detail-row:last-child {
@@ -160,6 +191,183 @@
         padding-top: 1rem;
         border-top: 2px solid #e0e0e0;
     }
+
+    /* Form Styling */
+    .form-control.is-invalid {
+        border-color: var(--danger);
+    }
+
+    .invalid-feedback {
+        display: none;
+        color: var(--danger);
+        font-size: 0.875rem;
+        margin-top: 0.25rem;
+    }
+
+    .invalid-feedback.show {
+        display: block;
+    }
+
+    /* Button Loading State */
+    .btn-loader {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .spinner {
+        display: inline-block;
+        width: 1rem;
+        height: 1rem;
+        border: 2px solid rgba(255, 255, 255, 0.3);
+        border-top-color: white;
+        border-radius: 50%;
+        animation: spin 0.6s linear infinite;
+    }
+
+    @keyframes spin {
+        to {
+            transform: rotate(360deg);
+        }
+    }
+
+    /* Payment Info List */
+    .payment-info-list {
+        padding-left: 1.5rem;
+        margin: 0;
+    }
+
+    .payment-info-list li {
+        margin-bottom: 0.75rem;
+    }
+
+    .payment-info-list li:last-child {
+        margin-bottom: 0;
+    }
+
+    /* Mobile Responsive Adjustments */
+    @media (max-width: 767px) {
+        .fee-amount {
+            font-size: 1rem;
+        }
+
+        .card-header h3 {
+            font-size: 1.1rem;
+        }
+
+        .fee-details-card h4 {
+            font-size: 1rem;
+        }
+
+        .btn-block {
+            padding: 0.75rem;
+            font-size: 0.95rem;
+        }
+    }
+
+    /* Small Mobile Devices */
+    @media (max-width: 480px) {
+        .payment-container {
+            gap: 1rem;
+        }
+
+        .fee-detail-row {
+            padding: 0.5rem 0;
+        }
+
+        .card {
+            padding: var(--spacing-md);
+        }
+    }
 </style>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const form = document.getElementById('paymentForm');
+        if (!form) return;
+
+        const amountInput = document.getElementById('amount');
+        const paymentMethod = document.getElementById('payment_method');
+        const submitBtn = document.getElementById('submitBtn');
+        const btnText = document.getElementById('btnText');
+        const btnLoader = document.getElementById('btnLoader');
+        const maxAmount = parseFloat('{{ fee.due_amount }}');
+
+        // Real-time amount validation
+        amountInput.addEventListener('input', function () {
+            validateAmount();
+        });
+
+        amountInput.addEventListener('blur', function () {
+            validateAmount();
+        });
+
+        function validateAmount() {
+            const amount = parseFloat(amountInput.value);
+            const amountError = document.getElementById('amountError');
+
+            amountInput.classList.remove('is-invalid');
+            amountError.classList.remove('show');
+
+            if (isNaN(amount) || amountInput.value.trim() === '') {
+                amountInput.classList.add('is-invalid');
+                amountError.textContent = 'Please enter a valid amount.';
+                amountError.classList.add('show');
+                return false;
+            }
+
+            if (amount <= 0) {
+                amountInput.classList.add('is-invalid');
+                amountError.textContent = 'Amount must be greater than zero.';
+                amountError.classList.add('show');
+                return false;
+            }
+
+            if (amount > maxAmount) {
+                amountInput.classList.add('is-invalid');
+                amountError.textContent = `Amount cannot exceed ₹${maxAmount.toFixed(2)}`;
+                amountError.classList.add('show');
+                return false;
+            }
+
+            return true;
+        }
+
+        // Form submission with validation and confirmation
+        form.addEventListener('submit', function (e) {
+            e.preventDefault();
+
+            // Validate amount
+            if (!validateAmount()) {
+                return;
+            }
+
+            // Validate payment method
+            if (!paymentMethod.value) {
+                alert('Please select a payment method.');
+                paymentMethod.focus();
+                return;
+            }
+
+            // Get form values
+            const amount = parseFloat(amountInput.value).toFixed(2);
+            const method = paymentMethod.options[paymentMethod.selectedIndex].text;
+
+            // Confirm payment
+            const confirmMessage = `Confirm payment of ₹${amount} via ${method}?`;
+            if (!confirm(confirmMessage)) {
+                return;
+            }
+
+            // Show loading state
+            submitBtn.disabled = true;
+            btnText.style.display = 'none';
+            btnLoader.style.display = 'inline-flex';
+
+            // Submit form
+            form.submit();
+        });
+    });
+</script>
 
 {% endblock %}
