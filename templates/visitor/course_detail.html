@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+
+{% block title %}{{ course.course_name }} - Disha Computer Classes{% endblock %}
+
+{% block content %}
+<!-- Course Header -->
+<div class="card mb-3">
+    <div class="card-body">
+        <div class="d-flex justify-between align-center">
+            <div>
+                <h1 class="mb-2">{{ course.course_name }}</h1>
+                <p class="text-muted mb-0">{{ course.category or 'General' }} Course</p>
+            </div>
+            <span
+                class="badge badge-{{ course.level == 'beginner' and 'success' or (course.level == 'intermediate' and 'warning' or 'danger') }}"
+                style="font-size: 1rem; padding: 0.5rem 1rem;">
+                {{ course.level|title }}
+            </span>
+        </div>
+    </div>
+</div>
+
+<!-- Course Details -->
+<div class="grid grid-2 mb-3">
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">📋 Course Information</h3>
+        </div>
+        <div class="card-body">
+            <p><strong>Duration:</strong> {{ course.duration_months }} months</p>
+            <p><strong>Fees:</strong> <span style="color: var(--primary); font-size: 1.5rem; font-weight: bold;">₹{{
+                    course.fees }}</span></p>
+            <p><strong>Level:</strong> {{ course.level|title }}</p>
+            {% if course.category %}
+            <p><strong>Category:</strong> {{ course.category }}</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">📖 Description</h3>
+        </div>
+        <div class="card-body">
+            <p>{{ course.description }}</p>
+        </div>
+    </div>
+</div>
+
+<!-- Available Batches -->
+<div class="card mb-3">
+    <div class="card-header">
+        <h3 class="card-title">🚀 Available Batches</h3>
+    </div>
+    <div class="card-body">
+        {% if batches %}
+        <div class="grid grid-2">
+            {% for batch in batches %}
+            <div class="card" style="margin: 0; border-left: 4px solid var(--primary);">
+                <h4>{{ batch.batch_name }}</h4>
+                <p><strong>Teacher:</strong> {{ batch.teacher_name or 'To be assigned' }}</p>
+                {% if batch.qualification %}
+                <p><strong>Qualification:</strong> {{ batch.qualification }}</p>
+                {% endif %}
+                <p><strong>Start Date:</strong> {{ batch.start_date }}</p>
+                <p><strong>End Date:</strong> {{ batch.end_date }}</p>
+                <p><strong>Timings:</strong> {{ batch.timings }}</p>
+                <p><strong>Available Seats:</strong>
+                    <span
+                        class="badge badge-{{ batch.available_seats > 5 and 'success' or (batch.available_seats > 0 and 'warning' or 'danger') }}">
+                        {{ batch.available_seats }} / {{ batch.max_students }}
+                    </span>
+                </p>
+                <a href="{{ url_for('auth.register') }}" class="btn btn-success btn-sm"
+                    style="width: 100%; margin-top: 1rem;">
+                    Enroll Now
+                </a>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-muted text-center">No batches available at the moment. Please check back later or contact us for
+            more information.</p>
+        <div class="text-center mt-3">
+            <a href="{{ url_for('visitor.contact') }}" class="btn btn-primary">Contact Us</a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Action Buttons -->
+<div class="text-center">
+    <a href="{{ url_for('visitor.courses') }}" class="btn btn-outline">← Back to Courses</a>
+    <a href="{{ url_for('auth.register') }}" class="btn btn-primary" style="margin-left: 1rem;">Register Now</a>
+</div>
+{% endblock %}

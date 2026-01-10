@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, flash
+from flask import Blueprint, render_template, request, flash, redirect, url_for
 from database import execute_query
 
 visitor_bp = Blueprint('visitor', __name__)
