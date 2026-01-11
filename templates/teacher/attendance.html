@@ -21,8 +21,13 @@
                 </div>
                 <div class="form-group">
                     <label class="form-label">Date *</label>
-                    <input type="date" name="date" class="form-control" value="{{ selected_date }}"
+                    <input type="date" name="date" class="form-control" value="{{ selected_date }}" {% if batch_details
+                        %} min="{{ batch_details.start_date }}" max="{{ batch_details.end_date }}" {% endif %}
                         onchange="this.form.submit()" required>
+                    {% if batch_details %}
+                    <small class="text-muted">📅 Valid range: {{ batch_details.start_date }} to {{
+                        batch_details.end_date }}</small>
+                    {% endif %}
                 </div>
                 <div style="display: flex; align-items: flex-end;">
                     <button type="button" class="btn btn-secondary"

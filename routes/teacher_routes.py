@@ -218,13 +218,23 @@ def attendance():
         fetch=True
     )
     
-    # If batch selected, get students
+    # If batch selected, get students and batch details
     selected_batch = request.args.get('batch_id', type=int)
     students = []
     selected_date = request.args.get('date', date.today().isoformat())
     existing_attendance = {}
+    batch_details = None
     
     if selected_batch:
+        # Get batch details including start and end dates
+        batch_details = execute_query(
+            """SELECT batch_id, batch_name, start_date, end_date
+               FROM batches
+               WHERE batch_id = %s""",
+            (selected_batch,),
+            fetch_one=True
+        )
+        
         students = execute_query(
             """SELECT s.student_id, s.enrollment_no, u.full_name
                FROM enrollments e
@@ -255,7 +265,8 @@ def attendance():
                          students=students,
                          selected_batch=selected_batch,
                          selected_date=selected_date,
-                         existing_attendance=existing_attendance)
+                         existing_attendance=existing_attendance,
+                         batch_details=batch_details)
 
 @teacher_bp.route('/attendance/reports')
 @role_required('teacher')
@@ -282,16 +293,19 @@ def attendance_reports():
     # Build attendance summary query
     attendance_summary = []
     low_attendance_students = []
+    batch_details = None
     
     if batch_id:
-        # Verify teacher has access to this batch
-        batch_check = execute_query(
-            "SELECT batch_id FROM batches WHERE batch_id = %s AND teacher_id = %s",
+        # Verify teacher has access to this batch and get batch details
+        batch_details = execute_query(
+            """SELECT batch_id, batch_name, start_date, end_date 
+               FROM batches 
+               WHERE batch_id = %s AND teacher_id = %s""",
             (batch_id, teacher_id),
             fetch_one=True
         )
         
-        if batch_check:
+        if batch_details:
             # Get attendance summary for the batch
             query = """
                 SELECT 
@@ -340,7 +354,8 @@ def attendance_reports():
                          low_attendance_students=low_attendance_students,
                          selected_batch=batch_id,
                          date_from=date_from,
-                         date_to=date_to)
+                         date_to=date_to,
+                         batch_details=batch_details)
 
 
 @teacher_bp.route('/materials', methods=['GET', 'POST'])

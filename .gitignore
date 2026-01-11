@@ -46,9 +46,7 @@ venv.bak/
 
 # User Uploaded Files - IMPORTANT!
 uploads/
-uploads/materials/
-uploads/certificates/
-uploads/photos/
+static/uploads/
 
 # Environment Variables
 .env
@@ -65,9 +63,12 @@ instance/
 temp/
 tmp/
 
-# Logs
+# Logs and Output Files
 logs/
 *.log
+*.txt
+output.txt
+check_log.txt
 
 # OS
 Thumbs.db
@@ -86,3 +87,16 @@ docs/_build/
 *.bak
 *.backup
 *~
+
+# Diagnostic and Development Scripts (DO NOT COMMIT)
+debug_*.py
+test_*.py
+check_*.py
+fix_*.py
+verify_*.py
+reset_*.py
+sync_*.py
+install_*.py
+
+# SQL scripts that are one-time setup (keep database_schema.sql)
+create_payment_trigger.sql
