@@ -48,9 +48,19 @@
                 <div class="col-md-6">
                     <h4>Course Details</h4>
                     <div class="form-group">
-                        <label for="duration_months">Duration (Months) <span class="text-danger">*</span></label>
+                        <label for="duration_type">Duration Type <span class="text-danger">*</span></label>
+                        <select name="duration_type" id="duration_type" class="form-control" required>
+                            <option value="months" {{ course.duration_type=='months' and 'selected' or '' }}>Months
+                            </option>
+                            <option value="days" {{ course.duration_type=='days' and 'selected' or '' }}>Days</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="duration_months">Duration <span class="text-danger">*</span></label>
                         <input type="number" name="duration_months" id="duration_months" class="form-control"
                             value="{{ course.duration_months }}" required min="1">
+                        <small class="form-text text-muted">Enter the duration value based on type selected
+                            above</small>
                     </div>
                     <div class="form-group">
                         <label for="fees">Fees (₹) <span class="text-danger">*</span></label>

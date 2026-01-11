@@ -56,8 +56,9 @@
                     </div>
                     <div class="form-group">
                         <label for="end_date">End Date</label>
-                        <input type="date" name="end_date" id="end_date" class="form-control">
-                        <small class="form-text text-muted">Leave empty for ongoing batches</small>
+                        <input type="date" name="end_date" id="end_date" class="form-control" readonly
+                            style="background-color: #e9ecef; cursor: not-allowed;">
+                        <small class="form-text text-muted">Auto-calculated based on course duration</small>
                     </div>
                     <div class="form-group">
                         <label for="schedule">Schedule</label>
@@ -86,4 +87,55 @@
         </form>
     </div>
 </div>
+
+<script>
+    // Course data with duration and duration_type
+    const coursesData = {
+    {% for course in courses %}
+    { { course.course_id } }: {
+        duration: { { course.duration_months } },
+        durationType: '{{ course.duration_type }}'
+    } {% if not loop.last %}, {% endif %}
+    {% endfor %}
+};
+
+    // Calculate end date based on start date and course duration
+    function calculateEndDate() {
+        const courseId = document.getElementById('course_id').value;
+        const startDate = document.getElementById('start_date').value;
+        const endDateInput = document.getElementById('end_date');
+
+        if (!courseId || !startDate) {
+            endDateInput.value = '';
+            return;
+        }
+
+        const course = coursesData[courseId];
+        if (!course) {
+            endDateInput.value = '';
+            return;
+        }
+
+        const start = new Date(startDate);
+        let end = new Date(startDate);
+
+        if (course.durationType === 'months') {
+            // Add months
+            end.setMonth(end.getMonth() + course.duration);
+        } else {
+            // Add days
+            end.setDate(end.getDate() + course.duration);
+        }
+
+        // Format as YYYY-MM-DD for date input
+        const year = end.getFullYear();
+        const month = String(end.getMonth() + 1).padStart(2, '0');
+        const day = String(end.getDate()).padStart(2, '0');
+        endDateInput.value = `${year}-${month}-${day}`;
+    }
+
+    // Attach event listeners
+    document.getElementById('course_id').addEventListener('change', calculateEndDate);
+    document.getElementById('start_date').addEventListener('change', calculateEndDate);
+</script>
 {% endblock %}

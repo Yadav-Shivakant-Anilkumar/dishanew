@@ -5,9 +5,18 @@
 
 <div class="card">
     <div class="card-body">
-        <!-- Batch and Date Selection -->
+        <!-- Attendance Type and Batch Selection -->
         <form method="GET" class="mb-4">
             <div class="grid grid-3 gap-3">
+                <div class="form-group">
+                    <label class="form-label">Attendance Type *</label>
+                    <select name="type" class="form-control form-select" onchange="this.form.submit()" required>
+                        <option value="student" {% if attendance_type=='student' %}selected{% endif %}>👨‍🎓 Student
+                            Attendance</option>
+                        <option value="teacher" {% if attendance_type=='teacher' %}selected{% endif %}>👨‍🏫 Teacher
+                            Attendance</option>
+                    </select>
+                </div>
                 <div class="form-group">
                     <label class="form-label">Select Batch *</label>
                     <select name="batch_id" class="form-control form-select" onchange="this.form.submit()" required>
@@ -21,20 +30,35 @@
                 </div>
                 <div class="form-group">
                     <label class="form-label">Date *</label>
-                    <input type="date" name="date" class="form-control" value="{{ selected_date }}"
-                        onchange="this.form.submit()" required>
+                    <input type="date" name="date" class="form-control" value="{{ selected_date }}" {% if batch_details
+                        %} min="{{ batch_details.start_date }}"
+                        max="{% if batch_details.end_date|string < today %}{{ batch_details.end_date }}{% else %}{{ today }}{% endif %}"
+                        {% else %} max="{{ today }}" {% endif %} onchange="this.form.submit()" required>
+                    {% if batch_details %}
+                    <small class="text-muted">📅 Valid: {{ batch_details.start_date }} to {{
+                        batch_details.end_date }}</small>
+                    {% endif %}
                 </div>
-                <div style="display: flex; align-items: flex-end;">
-                    <button type="button" class="btn btn-secondary" onclick="setToday()">Today</button>
-                </div>
+            </div>
+            <div class="mt-2">
+                <button type="button" class="btn btn-secondary btn-sm"
+                    onclick="document.querySelector('input[name=date]').valueAsDate=new Date(); this.form.submit();">📅
+                    Today</button>
             </div>
         </form>
 
-        {% if students %}
+        {% if (attendance_type == 'student' and students) or (attendance_type == 'teacher' and teachers) %}
+        {% if batch_details and batch_details.status != 'ongoing' %}
+        <div class="alert alert-warning" role="alert">
+            ⚠️ <strong>Warning:</strong> This batch is currently <strong>{{ batch_details.status }}</strong>.
+        </div>
+        {% endif %}
+
         <!-- Attendance Form -->
         <form method="POST" id="attendanceForm">
             <input type="hidden" name="batch_id" value="{{ selected_batch }}">
             <input type="hidden" name="attendance_date" value="{{ selected_date }}">
+            <input type="hidden" name="attendance_type" value="{{ attendance_type }}">
 
             <!-- Bulk Actions -->
             <div class="mb-3">
@@ -43,16 +67,25 @@
                 <button type="button" class="btn btn-sm btn-danger" onclick="markAll('absent')">✗ Mark All
                     Absent</button>
                 <button type="button" class="btn btn-sm btn-warning" onclick="markAll('late')">⏰ Mark All Late</button>
+                {% if attendance_type == 'student' %}
                 <button type="button" class="btn btn-sm btn-info" onclick="markAll('excused')">👤 Mark All
                     Excused</button>
+                {% else %}
+                <button type="button" class="btn btn-sm btn-info" onclick="markAll('on_leave')">🏖️ Mark All
+                    On Leave</button>
+                {% endif %}
             </div>
 
             <div style="overflow-x: auto;">
+                {% if attendance_type == 'student' %}
+                <!-- Student Attendance Table -->
                 <table class="table">
                     <thead>
                         <tr>
                             <th>Enrollment No</th>
                             <th>Student Name</th>
+                            <th>Check-in Status</th>
+                            <th>Current Status</th>
                             <th>Present</th>
                             <th>Absent</th>
                             <th>Late</th>
@@ -63,10 +96,37 @@
                     <tbody>
                         {% for student in students %}
                         {% set existing = existing_attendance.get(student.student_id, {}) %}
-                        <tr>
+                        {% set current_status = existing.get('status', '') %}
+                        <tr
+                            style="{% if current_status == 'present' %}background-color: #e8f5e9;{% elif current_status == 'absent' %}background-color: #ffebee;{% elif current_status == 'late' %}background-color: #fff3e0;{% elif current_status == 'excused' %}background-color: #e3f2fd;{% endif %}">
                             <td>{{ student.enrollment_no }}</td>
                             <td>{{ student.full_name }}</td>
-                            <input type="hidden" name="student_ids" value="{{ student.student_id }}">
+                            <td>
+                                {% if student.checkin_id %}
+                                <span class="badge badge-success">
+                                    ✅ Checked In
+                                    {% if student.checkin_time %}
+                                    <br><small>{{ student.checkin_time.strftime('%I:%M %p') }}</small>
+                                    {% endif %}
+                                </span>
+                                {% else %}
+                                <span class="badge badge-secondary">⚪ Not Checked In</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if current_status == 'present' %}
+                                <span class="badge badge-success">✓ Present</span>
+                                {% elif current_status == 'absent' %}
+                                <span class="badge badge-danger">✗ Absent</span>
+                                {% elif current_status == 'late' %}
+                                <span class="badge badge-warning">⏰ Late</span>
+                                {% elif current_status == 'excused' %}
+                                <span class="badge badge-info">👤 Excused</span>
+                                {% else %}
+                                <span class="badge badge-secondary">— Not Marked</span>
+                                {% endif %}
+                            </td>
+                            <input type="hidden" name="person_ids" value="{{ student.student_id }}">
                             <td><input type="radio" name="status_{{ student.student_id }}" value="present" {% if
                                     existing.get('status')=='present' %}checked{% endif %}></td>
                             <td><input type="radio" name="status_{{ student.student_id }}" value="absent" {% if
@@ -82,6 +142,59 @@
                         {% endfor %}
                     </tbody>
                 </table>
+                {% else %}
+                <!-- Teacher Attendance Table -->
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Teacher Name</th>
+                            <th>Contact</th>
+                            <th>Current Status</th>
+                            <th>Present</th>
+                            <th>Absent</th>
+                            <th>Late</th>
+                            <th>On Leave</th>
+                            <th>Remarks</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for teacher in teachers %}
+                        {% set existing = existing_attendance.get(teacher.teacher_id, {}) %}
+                        {% set current_status = existing.get('status', '') %}
+                        <tr
+                            style="{% if current_status == 'present' %}background-color: #e8f5e9;{% elif current_status == 'absent' %}background-color: #ffebee;{% elif current_status == 'late' %}background-color: #fff3e0;{% elif current_status == 'on_leave' %}background-color: #e3f2fd;{% endif %}">
+                            <td>{{ teacher.full_name }}</td>
+                            <td>{{ teacher.contact or 'N/A' }}</td>
+                            <td>
+                                {% if current_status == 'present' %}
+                                <span class="badge badge-success">✓ Present</span>
+                                {% elif current_status == 'absent' %}
+                                <span class="badge badge-danger">✗ Absent</span>
+                                {% elif current_status == 'late' %}
+                                <span class="badge badge-warning">⏰ Late</span>
+                                {% elif current_status == 'on_leave' %}
+                                <span class="badge badge-info">🏖️ On Leave</span>
+                                {% else %}
+                                <span class="badge badge-secondary">— Not Marked</span>
+                                {% endif %}
+                            </td>
+                            <input type="hidden" name="person_ids" value="{{ teacher.teacher_id }}">
+                            <td><input type="radio" name="status_{{ teacher.teacher_id }}" value="present" {% if
+                                    existing.get('status')=='present' %}checked{% endif %}></td>
+                            <td><input type="radio" name="status_{{ teacher.teacher_id }}" value="absent" {% if
+                                    existing.get('status')=='absent' %}checked{% endif %}></td>
+                            <td><input type="radio" name="status_{{ teacher.teacher_id }}" value="late" {% if
+                                    existing.get('status')=='late' %}checked{% endif %}></td>
+                            <td><input type="radio" name="status_{{ teacher.teacher_id }}" value="on_leave" {% if
+                                    existing.get('status')=='on_leave' %}checked{% endif %}></td>
+                            <td><input type="text" name="remarks_{{ teacher.teacher_id }}"
+                                    class="form-control form-control-sm" value="{{ existing.get('remarks') or '' }}"
+                                    placeholder="Optional"></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% endif %}
             </div>
 
             <div class="mt-3">
@@ -91,18 +204,12 @@
             </div>
         </form>
         {% else %}
-        <p class="text-muted text-center">Select a batch and date to mark attendance</p>
+        <p class="text-muted text-center">Select attendance type, batch, and date to mark attendance</p>
         {% endif %}
     </div>
 </div>
 
 <script>
-    function setToday() {
-        const today = new Date().toISOString().split('T')[0];
-        document.querySelector('input[name=date]').value = today;
-        document.querySelector('form').submit();
-    }
-
     function markAll(status) {
         const radios = document.querySelectorAll(`input[type="radio"][value="${status}"]`);
         radios.forEach(radio => radio.checked = true);

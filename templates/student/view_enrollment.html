@@ -23,7 +23,18 @@
             <div>
                 <h4 class="mb-2">Course Information</h4>
                 <p class="mb-3">{{ enrollment.description }}</p>
-                <p class="mb-2"><strong>⏳ Duration:</strong> {{ enrollment.duration_months }} months</p>
+                <p class="mb-3"><strong>⏳ Duration:</strong>
+                    {% if enrollment.duration_months == 0 %}
+                    {{ enrollment.duration_days }} day{{ 's' if enrollment.duration_days != 1 else '' }}
+                    {% elif enrollment.duration_days % 30 == 0 or (enrollment.duration_days - enrollment.duration_months
+                    * 30) == 0 %}
+                    {{ enrollment.duration_months }} month{{ 's' if enrollment.duration_months != 1 else '' }}
+                    {% else %}
+                    {% set remaining_days = enrollment.duration_days - (enrollment.duration_months * 30) %}
+                    {{ enrollment.duration_months }} month{{ 's' if enrollment.duration_months != 1 else '' }} {{
+                    remaining_days }} day{{ 's' if remaining_days != 1 else '' }}
+                    {% endif %}
+                </p>
                 <p class="mb-0"><strong>💰 Fees:</strong> ₹{{ "%.2f"|format(enrollment.fees) }}</p>
             </div>
 
@@ -35,11 +46,29 @@
                 <p class="mb-2"><strong>⏰ Schedule:</strong> {{ enrollment.schedule }}</p>
                 <p class="mb-2"><strong>🕐 Timing:</strong> {{ enrollment.timing }}</p>
                 <p class="mb-2"><strong>🏫 Classroom:</strong> {{ enrollment.classroom or 'TBA' }}</p>
-                <p class="mb-0"><strong>📊 Batch Status:</strong>
+                <p class="mb-3"><strong>📊 Batch Status:</strong>
                     <span class="badge badge-{{ enrollment.batch_status == 'ongoing' and 'success' or 'info' }}">
                         {{ enrollment.batch_status }}
                     </span>
                 </p>
+
+                {% if enrollment.status == 'active' and enrollment.batch_status == 'ongoing' and
+                (enrollment.payment_status == 'paid' or enrollment.access_granted) %}
+                <a href="{{ url_for('student.materials') }}" class="btn btn-success btn-block"
+                    style="width: 100%; padding: 0.75rem;">
+                    📚 Start Learning
+                </a>
+                {% elif enrollment.status == 'active' and enrollment.batch_status != 'ongoing' %}
+                <button class="btn btn-secondary btn-block" disabled title="Batch not yet started or already completed"
+                    style="width: 100%; padding: 0.75rem;">
+                    ⏸️ Not Available
+                </button>
+                {% elif enrollment.status == 'active' %}
+                <button class="btn btn-secondary btn-block" disabled
+                    title="Payment required or contact admin for access" style="width: 100%; padding: 0.75rem;">
+                    🔒 Payment Required
+                </button>
+                {% endif %}
             </div>
         </div>
 
@@ -159,6 +188,12 @@
             <a href="{{ url_for('student.courses') }}" class="btn btn-outline">← Back to My Courses</a>
 
             {% if enrollment.status == 'active' %}
+            <a href="{{ url_for('student.materials') }}" class="btn btn-success">
+                📚 Start Learning
+            </a>
+            {% endif %}
+
+            {% if enrollment.status == 'active' and enrollment.batch_status == 'upcoming' %}
             <form method="POST"
                 action="{{ url_for('student.cancel_enrollment', enrollment_id=enrollment.enrollment_id) }}"
                 style="display: inline-block;"
@@ -167,6 +202,11 @@
                     ❌ Cancel Enrollment
                 </button>
             </form>
+            {% elif enrollment.status == 'active' and enrollment.batch_status in ('ongoing', 'completed') %}
+            <button type="button" class="btn btn-secondary" disabled
+                title="Cannot cancel enrollment for ongoing or completed batches. Please contact administration if needed.">
+                ❌ Cancel Enrollment (Not Allowed)
+            </button>
             {% endif %}
         </div>
     </div>

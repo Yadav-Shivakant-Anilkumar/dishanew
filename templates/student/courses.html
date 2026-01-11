@@ -24,37 +24,80 @@
             <div>
                 <p class="mb-2"><strong>👨‍🏫 Teacher:</strong> {{ enrollment.teacher_name or 'TBA' }}</p>
                 <p class="mb-2"><strong>📅 Start:</strong> {{ enrollment.start_date }}</p>
+                <div class="mb-2">
+                    <span class="badge badge-{{ enrollment.status == 'active' and 'success' or 'secondary' }}">
+                        {{ enrollment.status.upper() }}
+                    </span>
+                    <span class="badge badge-{{ enrollment.batch_status == 'ongoing' and 'primary' or 'info' }}">
+                        {{ enrollment.batch_status.upper() }}
+                    </span>
+                    <!-- DEBUG: batch_status='{{ enrollment.batch_status }}', today='{{ today }}', start='{{ enrollment.start_date }}', end='{{ enrollment.end_date }}' -->
+                </div>
+
+                <div class="mb-2">
+                    <span class="badge badge-{{ enrollment.completion_status == 'passed' and 'success' or 'info' }}">
+                        {{ enrollment.completion_status }}
+                    </span>
+                </div>
                 <p class="mb-0"><strong>📅 End:</strong> {{ enrollment.end_date or 'Ongoing' }}</p>
             </div>
         </div>
 
-        <div class="mb-3">
-            <span class="badge badge-{{ enrollment.status == 'active' and 'success' or 'warning' }} mr-1">
-                {{ enrollment.status }}
-            </span>
-            <span class="badge badge-{{ enrollment.completion_status == 'passed' and 'success' or 'info' }}">
-                {{ enrollment.completion_status }}
-            </span>
-        </div>
-
-        <div class="d-flex gap-2">
-            <a href="{{ url_for('student.view_enrollment', enrollment_id=enrollment.enrollment_id) }}"
-                class="btn btn-primary btn-sm">
-                👁️ View Details
-            </a>
-            {% if enrollment.status == 'active' %}
-            <form method="POST"
-                action="{{ url_for('student.cancel_enrollment', enrollment_id=enrollment.enrollment_id) }}"
-                style="display: inline-block;"
-                onsubmit="return confirm('Are you sure you want to cancel this enrollment?');">
-                <button type="submit" class="btn btn-danger btn-sm">
-                    ❌ Cancel
+        <!-- Check-in Status or Button for ongoing batches -->
+        {% if enrollment.batch_status == 'ongoing' and today >= enrollment.start_date|string and today <=
+            enrollment.end_date|string %} <div class="mb-3">
+            {% if enrollment.checkin_id %}
+            <div class="alert alert-success" style="padding: 10px; margin: 0;">
+                ✓ Checked In for Today<br>
+                <small>{{ enrollment.checkin_time.strftime('%I:%M %p') if enrollment.checkin_time else 'Today'
+                    }}</small>
+            </div>
+            {% else %}
+            <form method="POST" action="{{ url_for('student.checkin', batch_id=enrollment.batch_id) }}"
+                style="margin: 0;">
+                <button type="submit" class="btn btn-success btn-block">
+                    📍 Check-in for Today's Class
                 </button>
             </form>
             {% endif %}
-        </div>
     </div>
-    {% endfor %}
+    {% endif %}
+
+    <div class="d-flex gap-2">
+        {% if enrollment.status == 'active' and enrollment.batch_status == 'ongoing' and (enrollment.payment_status ==
+        'paid' or enrollment.access_granted) %}
+        <a href="{{ url_for('student.materials') }}" class="btn btn-success btn-sm">
+            📚 Start Learning
+        </a>
+        {% elif enrollment.status == 'active' and enrollment.batch_status != 'ongoing' %}
+        <button class="btn btn-secondary btn-sm" disabled title="Batch not yet started or already completed">
+            ⏸️ Not Available
+        </button>
+        {% elif enrollment.status == 'active' %}
+        <button class="btn btn-secondary btn-sm" disabled title="Payment required or contact admin for access">
+            🔒 Payment Required
+        </button>
+        {% endif %}
+        <a href="{{ url_for('student.view_enrollment', enrollment_id=enrollment.enrollment_id) }}"
+            class="btn btn-primary btn-sm">
+            👁️ View Details
+        </a>
+        {% if enrollment.status == 'active' and enrollment.batch_status == 'upcoming' %}
+        <form method="POST" action="{{ url_for('student.cancel_enrollment', enrollment_id=enrollment.enrollment_id) }}"
+            style="display: inline-block;"
+            onsubmit="return confirm('Are you sure you want to cancel this enrollment?');">
+            <button type="submit" class="btn btn-danger btn-sm">
+                ❌ Cancel
+            </button>
+        </form>
+        {% elif enrollment.status == 'active' and enrollment.batch_status in ('ongoing', 'completed') %}
+        <button type="button" class="btn btn-secondary btn-sm" disabled title="Cannot cancel ongoing/completed batch">
+            ❌ Cancel (Not Allowed)
+        </button>
+        {% endif %}
+    </div>
+</div>
+{% endfor %}
 </div>
 {% else %}
 <div class="card text-center">

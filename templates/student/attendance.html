@@ -17,7 +17,7 @@
         <div class="grid grid-3 gap-3">
             {% for data in attendance_data %}
             <div class="card"
-                style="margin: 0; border-left: 4px solid {% if data.attendance_percentage >= 75 %}var(--success){% elif data.attendance_percentage >= 60 %}var(--warning){% else %}var(--danger){% endif %}; padding: var(--spacing-md);">
+                style="margin: 0; border-left: 4px solid {% if data.attendance_percentage and data.attendance_percentage >= 75 %}var(--success){% elif data.attendance_percentage and data.attendance_percentage >= 60 %}var(--warning){% else %}var(--danger){% endif %}; padding: var(--spacing-md);">
                 <h4 class="mb-2">{{ data.course_name }}</h4>
                 <p class="text-muted mb-3">{{ data.batch_name }}</p>
 
@@ -35,7 +35,7 @@
 
                 <div class="progress-bar mt-3">
                     <div class="progress-fill"
-                        style="width: {{ data.attendance_percentage or 0 }}%; background-color: {% if data.attendance_percentage >= 75 %}var(--success){% elif data.attendance_percentage >= 60 %}var(--warning){% else %}var(--danger){% endif %};">
+                        style="width: {{ data.attendance_percentage or 0 }}%; background-color: {% if data.attendance_percentage and data.attendance_percentage >= 75 %}var(--success){% elif data.attendance_percentage and data.attendance_percentage >= 60 %}var(--warning){% else %}var(--danger){% endif %};">
                         {{ "%.1f"|format(data.attendance_percentage or 0) }}%
                     </div>
                 </div>
@@ -48,7 +48,7 @@
             data.attendance_percentage < 75 %} <div class="alert alert-warning mt-3 mb-0" style="padding: 0.5rem;">
                 <strong>⚠️ Note:</strong> Try to maintain above 75% attendance.
         </div>
-        {% elif data.attendance_percentage >= 75 %}
+        {% elif data.attendance_percentage and data.attendance_percentage >= 75 %}
         <div class="alert alert-success mt-3 mb-0" style="padding: 0.5rem;">
             <strong>✓ Great!</strong> Your attendance is good.
         </div>

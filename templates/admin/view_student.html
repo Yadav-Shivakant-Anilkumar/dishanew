@@ -113,6 +113,7 @@
                         <th>Status</th>
                         <th>Completion Status</th>
                         <th>Grade</th>
+                        <th>Access Control</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -130,6 +131,47 @@
                         </td>
                         <td>{{ enrollment.completion_status }}</td>
                         <td>{{ enrollment.final_grade or '-' }}</td>
+                        <td>
+                            <!-- Payment Status -->
+                            {% if enrollment.payment_status %}
+                            {% if enrollment.payment_status == 'paid' %}
+                            <span class="badge badge-success">💰 Fully Paid</span>
+                            <br><small>₹{{ enrollment.paid_amount }} / ₹{{ enrollment.total_amount }}</small>
+                            {% elif enrollment.payment_status == 'partial' %}
+                            <span class="badge badge-warning">⚠️ Partial Payment</span>
+                            <br><small>Paid: ₹{{ enrollment.paid_amount }}</small>
+                            <br><small>Due: ₹{{ enrollment.due_amount }}</small>
+                            {% elif enrollment.payment_status == 'pending' %}
+                            <span class="badge badge-danger">❌ No Payment</span>
+                            <br><small>Due: ₹{{ enrollment.total_amount }}</small>
+                            {% else %}
+                            <span class="badge badge-secondary">{{ enrollment.payment_status }}</span>
+                            {% endif %}
+                            {% else %}
+                            <span class="badge badge-secondary">⚪ No Fee Record</span>
+                            {% endif %}
+
+
+                            <!-- Access Grant Status -->
+                            {% if enrollment.access_granted %}
+                            <span class="badge badge-success" title="Admin manually granted access">🔓 Admin Override -
+                                Access Granted</span>
+                            <br><br>
+                            {% endif %}
+
+                            <!-- Only show override button if payment is not fully paid OR override is already active -->
+                            {% if enrollment.payment_status != 'paid' or enrollment.access_granted %}
+                            <form method="POST"
+                                action="{{ url_for('admin.toggle_enrollment_access', enrollment_id=enrollment.enrollment_id) }}"
+                                style="display: inline;">
+                                <button type="submit"
+                                    class="btn btn-sm btn-{{ enrollment.access_granted and 'danger' or 'primary' }}">
+                                    {{ enrollment.access_granted and '🔒 Revoke Override' or '🔓 Grant Override Access'
+                                    }}
+                                </button>
+                            </form>
+                            {% endif %}
+                        </td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -153,6 +195,7 @@
                 <thead>
                     <tr>
                         <th>Course</th>
+                        <th>Batch</th>
                         <th>Total Amount</th>
                         <th>Paid Amount</th>
                         <th>Due Amount</th>
@@ -165,6 +208,7 @@
                     {% for fee in fees %}
                     <tr>
                         <td>{{ fee.course_name }}</td>
+                        <td>{{ fee.batch_name or 'N/A' }}</td>
                         <td>₹{{ fee.total_amount }}</td>
                         <td>₹{{ fee.paid_amount }}</td>
                         <td>₹{{ fee.due_amount }}</td>
@@ -203,6 +247,7 @@
                     <tr>
                         <th>Receipt No</th>
                         <th>Course</th>
+                        <th>Batch</th>
                         <th>Amount</th>
                         <th>Payment Date</th>
                         <th>Payment Method</th>
@@ -215,6 +260,7 @@
                     <tr>
                         <td><code>{{ transaction.receipt_no }}</code></td>
                         <td>{{ transaction.course_name }}</td>
+                        <td>{{ transaction.batch_name or 'N/A' }}</td>
                         <td><strong>₹{{ "%.2f"|format(transaction.amount) }}</strong></td>
                         <td>{{ transaction.payment_date }}</td>
                         <td>
@@ -237,6 +283,10 @@
                     <tr style="font-weight: bold; background-color: #f8f9fa;">
                         <td colspan="2" class="text-right">Total Paid:</td>
                         <td colspan="5">₹{{ "%.2f"|format(transactions|sum(attribute='amount')) }}</td>
+                    </tr>
+                    <tr style="font-weight: bold; background-color: #fff3cd;">
+                        <td colspan="2" class="text-right">Total Remaining/Due:</td>
+                        <td colspan="5">₹{{ "%.2f"|format(fees|sum(attribute='due_amount')) }}</td>
                     </tr>
                 </tfoot>
             </table>

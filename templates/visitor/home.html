@@ -54,7 +54,7 @@
                     <strong style="color: var(--primary);">₹{{ course.fees }}</strong>
                 </div>
                 <div class="mt-2">
-                    <small class="text-muted">Duration: {{ course.duration_months }} months</small>
+                    <small class="text-muted">Duration: {{ course.duration_months }} {{ course.duration_type }}</small>
                 </div>
                 <a href="{{ url_for('visitor.course_detail', course_id=course.course_id) }}"
                     class="btn btn-primary btn-sm" style="width: 100%; margin-top: 1rem;">

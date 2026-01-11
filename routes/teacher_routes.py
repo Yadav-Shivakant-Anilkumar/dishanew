@@ -172,6 +172,12 @@ def attendance():
         attendance_date = request.form.get('attendance_date')
         student_ids = request.form.getlist('student_ids')
         
+        # Validate date - cannot mark attendance for future dates
+        selected_date_obj = datetime.strptime(attendance_date, '%Y-%m-%d').date()
+        if selected_date_obj > date.today():
+            flash('Cannot mark attendance for future dates! Please select today or a past date.', 'danger')
+            return redirect(url_for('teacher.attendance', batch_id=batch_id, date=attendance_date))
+        
         # Process attendance for each student
         for student_id in student_ids:
             status = request.form.get(f'status_{student_id}')
@@ -228,37 +234,45 @@ def attendance():
     if selected_batch:
         # Get batch details including start and end dates
         batch_details = execute_query(
-            """SELECT batch_id, batch_name, start_date, end_date
+            """SELECT batch_id, batch_name, start_date, end_date, status
                FROM batches
                WHERE batch_id = %s""",
             (selected_batch,),
             fetch_one=True
         )
         
-        students = execute_query(
-            """SELECT s.student_id, s.enrollment_no, u.full_name
-               FROM enrollments e
-               JOIN students s ON e.student_id = s.student_id
-               JOIN users u ON s.user_id = u.user_id
-               WHERE e.batch_id = %s AND e.status = 'active'
-               ORDER BY u.full_name""",
-            (selected_batch,),
-            fetch=True
-        )
-        
-        # Get existing attendance for the date
-        attendance_records = execute_query(
-            """SELECT student_id, status, remarks FROM attendance
-               WHERE batch_id = %s AND attendance_date = %s""",
-            (selected_batch, selected_date),
-            fetch=True
-        )
-        
-        for record in attendance_records:
-            existing_attendance[record['student_id']] = {
-                'status': record['status'],
-                'remarks': record['remarks']
-            }
+        # Only allow marking attendance for ongoing batches
+        if batch_details and batch_details['status'] == 'ongoing':
+            students = execute_query(
+                """SELECT s.student_id, s.enrollment_no, u.full_name,
+                   sc.checkin_id, sc.checkin_time
+                   FROM enrollments e
+                   JOIN students s ON e.student_id = s.student_id
+                   JOIN users u ON s.user_id = u.user_id
+                   LEFT JOIN student_checkins sc ON sc.student_id = s.student_id
+                       AND sc.batch_id = e.batch_id AND sc.checkin_date = %s
+                   WHERE e.batch_id = %s AND e.status = 'active'
+                   ORDER BY u.full_name""",
+                (selected_date, selected_batch),
+                fetch=True
+            )
+            
+            # Get existing attendance for the date
+            attendance_records = execute_query(
+                """SELECT student_id, status, remarks FROM attendance
+                   WHERE batch_id = %s AND attendance_date = %s""",
+                (selected_batch, selected_date),
+                fetch=True
+            )
+            
+            for record in attendance_records:
+                existing_attendance[record['student_id']] = {
+                    'status': record['status'],
+                    'remarks': record['remarks']
+                }
+        elif batch_details:
+            # Batch exists but not ongoing - show message
+            flash(f'Cannot mark attendance: Batch is {batch_details["status"]}. Only ongoing batches allow attendance marking.', 'warning')
     
     return render_template('teacher/attendance.html',
                          batches=batches,
@@ -266,7 +280,8 @@ def attendance():
                          selected_batch=selected_batch,
                          selected_date=selected_date,
                          existing_attendance=existing_attendance,
-                         batch_details=batch_details)
+                         batch_details=batch_details,
+                         today=date.today().isoformat())
 
 @teacher_bp.route('/attendance/reports')
 @role_required('teacher')
@@ -425,11 +440,13 @@ def materials():
                     if len(valid_files) > 1:
                          current_title = f"{title} ({saved_count + 1})"
 
+                    is_active = request.form.get('is_active') == 'on'
+                    
                     execute_query(
                         """INSERT INTO learning_materials (course_id, batch_id, title, description,
-                           material_type, file_path, uploaded_by)
-                           VALUES (%s, %s, %s, %s, %s, %s, %s)""",
-                        (course_id, batch_id, current_title, description, material_type, db_file_path, session.get('user_id')),
+                           material_type, file_path, uploaded_by, is_active, file_size)
+                           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                        (course_id, batch_id, current_title, description, material_type, db_file_path, session.get('user_id'), is_active, file_length),
                         commit=True
                     )
                     saved_count += 1
@@ -448,11 +465,13 @@ def materials():
             # Handle Link/URL (or unsupported file type defaulting to link?)
             file_path = request.form.get('file_path', '').strip()
             
+            is_active = request.form.get('is_active') == 'on'
+            
             execute_query(
                 """INSERT INTO learning_materials (course_id, batch_id, title, description,
-                   material_type, file_path, uploaded_by)
-                   VALUES (%s, %s, %s, %s, %s, %s, %s)""",
-                (course_id, batch_id, title, description, material_type, file_path, session.get('user_id')),
+                   material_type, file_path, uploaded_by, is_active)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
+                (course_id, batch_id, title, description, material_type, file_path, session.get('user_id'), is_active),
                 commit=True
             )
             
@@ -542,10 +561,12 @@ def edit_material(material_id):
     batch_id = request.form.get('batch_id') or None
     material_type = request.form.get('material_type')
     description = request.form.get('description', '').strip()
+    is_active = request.form.get('is_active') == 'on'
     
     # Handle File Replacement if provided
     upload_type = request.form.get('upload_type', 'link')
     new_file_path = material['file_path'] # Default to existing
+    new_file_size = material['file_size'] # Default to existing
     
     if material_type == 'document' and upload_type == 'file':
          file = request.files.get('material_file') # Single file edit for now
@@ -570,10 +591,13 @@ def edit_material(material_id):
              
              # Check size
              file.seek(0, os.SEEK_END)
-             if file.tell() <= MAX_CONTENT_LENGTH:
+             current_size = file.tell()
+             
+             if current_size <= MAX_CONTENT_LENGTH:
                  file.seek(0)
                  file.save(save_path)
                  new_file_path = f"/{UPLOAD_FOLDER}/{unique_filename}"
+                 new_file_size = current_size
              else:
                  flash('New file exceeds 2MB limit. Kept old file.', 'warning')
     
@@ -584,9 +608,10 @@ def edit_material(material_id):
     execute_query(
         """UPDATE learning_materials 
            SET title = %s, course_id = %s, batch_id = %s, 
-               material_type = %s, file_path = %s, description = %s
+               material_type = %s, file_path = %s, description = %s,
+               is_active = %s, file_size = %s
            WHERE material_id = %s""",
-        (title, course_id, batch_id, material_type, new_file_path, description, material_id),
+        (title, course_id, batch_id, material_type, new_file_path, description, is_active, new_file_size, material_id),
         commit=True
     )
     

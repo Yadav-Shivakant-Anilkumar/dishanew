@@ -39,7 +39,7 @@
                             course.level == 'intermediate' and 'warning' or 
                             'danger' 
                         }}">{{ course.level }}</span></td>
-                        <td>{{ course.duration_months }}</td>
+                        <td>{{ course.duration_months }} {{ course.duration_type }}</td>
                         <td>₹{{ course.fees }}</td>
                         <td><span class="badge badge-{{ course.status == 'active' and 'success' or 'danger' }}">{{
                                 course.status }}</span></td>

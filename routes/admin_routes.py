@@ -289,33 +289,45 @@ def view_student(student_id):
     
     # Get enrollments
     enrollments = execute_query(
-        """SELECT e.*, b.batch_name, c.course_name, c.course_code, b.start_date, b.end_date
+        """SELECT e.*, b.batch_name, c.course_name, c.course_code, b.start_date, b.end_date,
+               f.payment_status, f.total_amount, f.paid_amount, f.due_amount
            FROM enrollments e
            JOIN batches b ON e.batch_id = b.batch_id
            JOIN courses c ON b.course_id = c.course_id
+           LEFT JOIN fees f ON f.student_id = e.student_id AND f.course_id = c.course_id
            WHERE e.student_id = %s
            ORDER BY e.enrollment_date DESC""",
         (student_id,),
         fetch=True
     )
     
-    # Get fee summary
+    # Get fee summary with batch info
     fees = execute_query(
-        """SELECT f.*, c.course_name
+        """SELECT f.*, c.course_name, b.batch_name
            FROM fees f
            JOIN courses c ON f.course_id = c.course_id
+           LEFT JOIN (
+               SELECT e.student_id, e.batch_id, bat.course_id, bat.batch_name
+               FROM enrollments e
+               JOIN batches bat ON e.batch_id = bat.batch_id
+           ) AS b ON f.student_id = b.student_id AND f.course_id = b.course_id
            WHERE f.student_id = %s
            ORDER BY f.created_at DESC""",
         (student_id,),
         fetch=True
     )
     
-    # Get payment transactions
+    # Get payment transactions with batch info
     transactions = execute_query(
-        """SELECT ft.*, c.course_name, u.full_name as received_by_name
+        """SELECT ft.*, c.course_name, b.batch_name, u.full_name as received_by_name
            FROM fee_transactions ft
            JOIN fees f ON ft.fee_id = f.fee_id
            JOIN courses c ON f.course_id = c.course_id
+           LEFT JOIN (
+               SELECT e.student_id, e.batch_id, bat.course_id, bat.batch_name
+               FROM enrollments e
+               JOIN batches bat ON e.batch_id = bat.batch_id
+           ) AS b ON f.student_id = b.student_id AND f.course_id = b.course_id
            LEFT JOIN users u ON ft.received_by = u.user_id
            WHERE f.student_id = %s
            ORDER BY ft.payment_date DESC""",
@@ -559,15 +571,16 @@ def create_course():
         course_name = request.form.get('course_name', '').strip()
         description = request.form.get('description', '').strip()
         duration_months = request.form.get('duration_months', 0)
+        duration_type = request.form.get('duration_type', 'months')
         fees = request.form.get('fees', 0)
         category = request.form.get('category', '').strip()
         level = request.form.get('level', 'beginner')
         
         course_id = execute_query(
             """INSERT INTO courses (course_code, course_name, description, duration_months,
-               fees, category, level, status)
-               VALUES (%s, %s, %s, %s, %s, %s, %s, 'active')""",
-            (course_code, course_name, description, duration_months, fees, category, level),
+               duration_type, fees, category, level, status)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'active')""",
+            (course_code, course_name, description, duration_months, duration_type, fees, category, level),
             commit=True
         )
         
@@ -593,6 +606,7 @@ def edit_course(course_id):
         course_name = request.form.get('course_name', '').strip()
         description = request.form.get('description', '').strip()
         duration_months = request.form.get('duration_months', 0)
+        duration_type = request.form.get('duration_type', 'months')
         fees = request.form.get('fees', 0)
         category = request.form.get('category', '').strip()
         level = request.form.get('level', 'beginner')
@@ -600,9 +614,9 @@ def edit_course(course_id):
         
         execute_query(
             """UPDATE courses SET course_name = %s, description = %s, duration_months = %s,
-               fees = %s, category = %s, level = %s, status = %s
+               duration_type = %s, fees = %s, category = %s, level = %s, status = %s
                WHERE course_id = %s""",
-            (course_name, description, duration_months, fees, category, level, status, course_id),
+            (course_name, description, duration_months, duration_type, fees, category, level, status, course_id),
             commit=True
         )
         
@@ -842,95 +856,167 @@ def delete_batch(batch_id):
 @admin_bp.route('/attendance/mark', methods=['GET', 'POST'])
 @role_required('admin')
 def mark_attendance():
-    """Mark attendance for any batch"""
+    """Mark attendance for students or teachers"""
+    attendance_type = request.args.get('type', 'student')  # Default to student
+    
     if request.method == 'POST':
         batch_id = request.form.get('batch_id')
         attendance_date = request.form.get('attendance_date')
-        student_ids = request.form.getlist('student_ids')
+        attendance_type = request.form.get('attendance_type', 'student')
+        person_ids = request.form.getlist('person_ids')
         
-        # Process attendance for each student
-        for student_id in student_ids:
-            status = request.form.get(f'status_{student_id}')
-            remarks = request.form.get(f'remarks_{student_id}', '').strip()
-            
-            # Only save if status is selected (not unmarked)
-            if status and status != 'unmarked':
-                # Check if attendance already exists
-                existing = execute_query(
-                    """SELECT attendance_id FROM attendance
-                       WHERE batch_id = %s AND student_id = %s AND attendance_date = %s""",
-                    (batch_id, student_id, attendance_date),
-                    fetch_one=True
-                )
+        if attendance_type == 'student':
+            # Process student attendance
+            for student_id in person_ids:
+                status = request.form.get(f'status_{student_id}')
+                remarks = request.form.get(f'remarks_{student_id}', '').strip()
                 
-                if existing:
-                    # Update existing
-                    execute_query(
-                        """UPDATE attendance SET status = %s, marked_by = %s, remarks = %s
-                           WHERE attendance_id = %s""",
-                        (status, session.get('user_id'), remarks if remarks else None, existing['attendance_id']),
-                        commit=True
+                if status and status != 'unmarked':
+                    existing = execute_query(
+                        """SELECT attendance_id FROM attendance
+                           WHERE batch_id = %s AND student_id = %s AND attendance_date = %s""",
+                        (batch_id, student_id, attendance_date),
+                        fetch_one=True
                     )
-                else:
-                    # Insert new
-                    execute_query(
-                        """INSERT INTO attendance (batch_id, student_id, attendance_date, status, marked_by, remarks)
-                           VALUES (%s, %s, %s, %s, %s, %s)""",
-                        (batch_id, student_id, attendance_date, status, session.get('user_id'), remarks if remarks else None),
-                        commit=True
+                    
+                    if existing:
+                        execute_query(
+                            """UPDATE attendance SET status = %s, marked_by = %s, remarks = %s
+                               WHERE attendance_id = %s""",
+                            (status, session.get('user_id'), remarks if remarks else None, existing['attendance_id']),
+                            commit=True
+                        )
+                    else:
+                        execute_query(
+                            """INSERT INTO attendance (batch_id, student_id, attendance_date, status, marked_by, remarks)
+                               VALUES (%s, %s, %s, %s, %s, %s)""",
+                            (batch_id, student_id, attendance_date, status, session.get('user_id'), remarks if remarks else None),
+                            commit=True
+                        )
+        else:
+            # Process teacher attendance
+            for teacher_id in person_ids:
+                status = request.form.get(f'status_{teacher_id}')
+                remarks = request.form.get(f'remarks_{teacher_id}', '').strip()
+                
+                if status and status != 'unmarked':
+                    existing = execute_query(
+                        """SELECT attendance_id FROM teacher_attendance
+                           WHERE batch_id = %s AND teacher_id = %s AND attendance_date = %s""",
+                        (batch_id, teacher_id, attendance_date),
+                        fetch_one=True
                     )
+                    
+                    if existing:
+                        execute_query(
+                            """UPDATE teacher_attendance SET status = %s, marked_by = %s, remarks = %s
+                               WHERE attendance_id = %s""",
+                            (status, session.get('user_id'), remarks if remarks else None, existing['attendance_id']),
+                            commit=True
+                        )
+                    else:
+                        execute_query(
+                            """INSERT INTO teacher_attendance (batch_id, teacher_id, attendance_date, status, marked_by, remarks)
+                               VALUES (%s, %s, %s, %s, %s, %s)""",
+                            (batch_id, teacher_id, attendance_date, status, session.get('user_id'), remarks if remarks else None),
+                            commit=True
+                        )
         
-        flash('Attendance marked successfully!', 'success')
-        return redirect(url_for('admin.mark_attendance', batch_id=batch_id, date=attendance_date))
+        flash(f'{"Student" if attendance_type == "student" else "Teacher"} attendance marked successfully!', 'success')
+        return redirect(url_for('admin.mark_attendance', type=attendance_type, batch_id=batch_id, date=attendance_date))
     
     # Get all batches for dropdown
     batches = execute_query(
         """SELECT b.batch_id, b.batch_name, c.course_name
            FROM batches b
            JOIN courses c ON b.course_id = c.course_id
-           WHERE b.status IN ('upcoming', 'ongoing')
+           WHERE b.status IN ('upcoming', 'ongoing', 'completed')
            ORDER BY b.batch_name""",
         fetch=True
     )
     
-    # If batch selected, get students
     selected_batch = request.args.get('batch_id', type=int)
     students = []
+    teachers = []
     selected_date = request.args.get('date', datetime.now().strftime('%Y-%m-%d'))
     existing_attendance = {}
+    batch_details = None
+    today = datetime.now().strftime('%Y-%m-%d')
     
     if selected_batch:
-        students = execute_query(
-            """SELECT s.student_id, s.enrollment_no, u.full_name
-               FROM enrollments e
-               JOIN students s ON e.student_id = s.student_id
-               JOIN users u ON s.user_id = u.user_id
-               WHERE e.batch_id = %s AND e.status = 'active'
-               ORDER BY u.full_name""",
+        # Get batch details
+        batch_details = execute_query(
+            """SELECT batch_id, batch_name, start_date, end_date, status
+               FROM batches WHERE batch_id = %s""",
             (selected_batch,),
-            fetch=True
+            fetch_one=True
         )
         
-        # Get existing attendance for the date
-        attendance_records = execute_query(
-            """SELECT student_id, status, remarks FROM attendance
-               WHERE batch_id = %s AND attendance_date = %s""",
-            (selected_batch, selected_date),
-            fetch=True
-        )
-        
-        for record in attendance_records:
-            existing_attendance[record['student_id']] = {
-                'status': record['status'],
-                'remarks': record['remarks']
-            }
+        if attendance_type == 'student':
+            # Get students with check-in status
+            students = execute_query(
+                """SELECT s.student_id, s.enrollment_no, u.full_name,
+                       sc.checkin_id, sc.checkin_time
+                   FROM enrollments e
+                   JOIN students s ON e.student_id = s.student_id
+                   JOIN users u ON s.user_id = u.user_id
+                   LEFT JOIN student_checkins sc ON sc.student_id = s.student_id 
+                       AND sc.batch_id = e.batch_id AND sc.checkin_date = %s
+                   WHERE e.batch_id = %s AND e.status = 'active'
+                   ORDER BY u.full_name""",
+                (selected_date, selected_batch),
+                fetch=True
+            )
+            
+            # Get existing student attendance
+            attendance_records = execute_query(
+                """SELECT student_id, status, remarks FROM attendance
+                   WHERE batch_id = %s AND attendance_date = %s""",
+                (selected_batch, selected_date),
+                fetch=True
+            )
+            
+            for record in attendance_records:
+                existing_attendance[record['student_id']] = {
+                    'status': record['status'],
+                    'remarks': record['remarks']
+                }
+        else:
+            # Get teachers assigned to batch
+            teachers = execute_query(
+                """SELECT t.teacher_id, u.full_name, t.contact
+                   FROM batches b
+                   JOIN teachers t ON b.teacher_id = t.teacher_id
+                   JOIN users u ON t.user_id = u.user_id
+                   WHERE b.batch_id = %s""",
+                (selected_batch,),
+                fetch=True
+            )
+            
+            # Get existing teacher attendance
+            attendance_records = execute_query(
+                """SELECT teacher_id, status, remarks FROM teacher_attendance
+                   WHERE batch_id = %s AND attendance_date = %s""",
+                (selected_batch, selected_date),
+                fetch=True
+            )
+            
+            for record in attendance_records:
+                existing_attendance[record['teacher_id']] = {
+                    'status': record['status'],
+                    'remarks': record['remarks']
+                }
     
     return render_template('admin/attendance_mark.html',
                          batches=batches,
                          students=students,
+                         teachers=teachers,
                          selected_batch=selected_batch,
                          selected_date=selected_date,
-                         existing_attendance=existing_attendance)
+                         existing_attendance=existing_attendance,
+                         batch_details=batch_details,
+                         today=today,
+                         attendance_type=attendance_type)
 
 @admin_bp.route('/attendance/reports')
 @role_required('admin')
@@ -1228,7 +1314,41 @@ def reports():
         fetch=True
     )
     
+    # Quick Stats
+    quick_stats = {
+        'total_students': execute_query("SELECT COUNT(*) as count FROM students", fetch_one=True)['count'],
+        'total_teachers': execute_query("SELECT COUNT(*) as count FROM teachers", fetch_one=True)['count'],
+        'total_courses': execute_query("SELECT COUNT(*) as count FROM courses WHERE status='active'", fetch_one=True)['count'],
+        'total_batches': execute_query("SELECT COUNT(*) as count FROM batches WHERE status IN ('ongoing', 'upcoming')", fetch_one=True)['count']
+    }
+    
     return render_template('admin/reports.html',
                          fee_summary=fee_summary,
                          enrollment_trends=enrollment_trends,
-                         course_popularity=course_popularity)
+                         course_popularity=course_popularity,
+                         quick_stats=quick_stats)
+
+@admin_bp.route('/enrollments/<int:enrollment_id>/toggle-access', methods=['POST'])
+@role_required('admin')
+def toggle_enrollment_access(enrollment_id):
+    """Toggle access_granted for an enrollment"""
+    enrollment = execute_query(
+        "SELECT * FROM enrollments WHERE enrollment_id = %s",
+        (enrollment_id,),
+        fetch_one=True
+    )
+    
+    if not enrollment:
+        flash('Enrollment not found.', 'danger')
+        return redirect(url_for('admin.manage_students'))
+    
+    # Toggle access_granted
+    new_status = not enrollment['access_granted']
+    execute_query(
+        "UPDATE enrollments SET access_granted = %s WHERE enrollment_id = %s",
+        (new_status, enrollment_id),
+        commit=True
+    )
+    
+    flash(f'Access {"granted" if new_status else "revoked"} successfully!', 'success')
+    return redirect(url_for('admin.view_student', student_id=enrollment['student_id']))

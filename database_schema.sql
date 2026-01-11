@@ -10,6 +10,8 @@ DROP TABLE IF EXISTS fees;
 DROP TABLE IF EXISTS certificates;
 DROP TABLE IF EXISTS exam_results;
 DROP TABLE IF EXISTS exams;
+DROP TABLE IF EXISTS student_checkins;
+DROP TABLE IF EXISTS teacher_attendance;
 DROP TABLE IF EXISTS attendance;
 DROP TABLE IF EXISTS enrollments;
 DROP TABLE IF EXISTS batches;
@@ -77,6 +79,7 @@ CREATE TABLE courses (
     course_name VARCHAR(100) NOT NULL,
     description TEXT,
     duration_months INT NOT NULL,
+    duration_type ENUM('months', 'days') DEFAULT 'months',
     fees DECIMAL(10, 2) NOT NULL,
     category VARCHAR(50),
     level ENUM('beginner', 'intermediate', 'advanced') DEFAULT 'beginner',
@@ -120,12 +123,14 @@ CREATE TABLE enrollments (
     completion_status ENUM('passed', 'failed', 'in_progress') DEFAULT 'in_progress',
     final_grade VARCHAR(5),
     remarks TEXT,
+    access_granted BOOLEAN DEFAULT FALSE COMMENT 'Admin override to grant access regardless of payment',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (student_id) REFERENCES students(student_id) ON DELETE CASCADE,
     FOREIGN KEY (batch_id) REFERENCES batches(batch_id) ON DELETE CASCADE,
     UNIQUE KEY unique_enrollment (student_id, batch_id),
     INDEX idx_student (student_id),
-    INDEX idx_batch (batch_id)
+    INDEX idx_batch (batch_id),
+    INDEX idx_access_granted (access_granted)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Attendance table
@@ -144,6 +149,38 @@ CREATE TABLE attendance (
     UNIQUE KEY unique_attendance (batch_id, student_id, attendance_date),
     INDEX idx_date (attendance_date),
     INDEX idx_student (student_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Student Check-ins table (for self-attendance marking)
+CREATE TABLE student_checkins (
+    checkin_id INT AUTO_INCREMENT PRIMARY KEY,
+    student_id INT NOT NULL,
+    batch_id INT NOT NULL,
+    checkin_date DATE NOT NULL,
+    checkin_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (student_id) REFERENCES students(student_id) ON DELETE CASCADE,
+    FOREIGN KEY (batch_id) REFERENCES batches(batch_id) ON DELETE CASCADE,
+    UNIQUE KEY unique_checkin (student_id, batch_id, checkin_date),
+    INDEX idx_checkin_lookup (batch_id, checkin_date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Teacher Attendance table
+CREATE TABLE teacher_attendance (
+    attendance_id INT AUTO_INCREMENT PRIMARY KEY,
+    teacher_id INT NOT NULL,
+    batch_id INT NOT NULL,
+    attendance_date DATE NOT NULL,
+    status ENUM('present', 'absent', 'late', 'on_leave') NOT NULL,
+    marked_by INT,
+    remarks TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (teacher_id) REFERENCES teachers(teacher_id) ON DELETE CASCADE,
+    FOREIGN KEY (batch_id) REFERENCES batches(batch_id) ON DELETE CASCADE,
+    FOREIGN KEY (marked_by) REFERENCES users(user_id) ON DELETE SET NULL,
+    UNIQUE KEY unique_teacher_date (teacher_id, batch_id, attendance_date),
+    INDEX idx_teacher_id (teacher_id),
+    INDEX idx_batch_id (batch_id),
+    INDEX idx_attendance_date (attendance_date)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Exams table

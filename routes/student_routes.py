@@ -1,7 +1,7 @@
 from flask import Blueprint, render_template, request, redirect, url_for, session, flash
 from auth import role_required
 from database import execute_query
-from datetime import datetime
+from datetime import datetime, date
 
 student_bp = Blueprint('student', __name__, url_prefix='/student')
 
@@ -65,23 +65,76 @@ def dashboard():
 def courses():
     """View enrolled courses"""
     student_id = session.get('student_id')
+    today = date.today().isoformat()
     
     enrollments = execute_query(
-        """SELECT e.*, c.course_id, c.course_name, c.description, c.duration_months,
-               b.batch_name, b.start_date, b.end_date, b.schedule, b.timing,
-               u.full_name as teacher_name, t.contact as teacher_contact
+        """SELECT e.*, c.course_id, c.course_name, c.description,
+               DATEDIFF(b.end_date, b.start_date) as duration_days,
+               TIMESTAMPDIFF(MONTH, b.start_date, b.end_date) as duration_months,
+               b.batch_name, b.start_date, b.end_date, b.schedule, b.timing, b.status as batch_status,
+               u.full_name as teacher_name, t.contact as teacher_contact,
+               sc.checkin_id, sc.checkin_time,
+               f.payment_status
            FROM enrollments e
            JOIN batches b ON e.batch_id = b.batch_id
            JOIN courses c ON b.course_id = c.course_id
            LEFT JOIN teachers t ON b.teacher_id = t.teacher_id
            LEFT JOIN users u ON t.user_id = u.user_id
+           LEFT JOIN student_checkins sc ON sc.student_id = e.student_id 
+               AND sc.batch_id = e.batch_id AND sc.checkin_date = %s
+           LEFT JOIN fees f ON f.student_id = e.student_id AND f.course_id = c.course_id
            WHERE e.student_id = %s
            ORDER BY e.enrollment_date DESC""",
-        (student_id,),
+        (today, student_id),
         fetch=True
     )
     
-    return render_template('student/courses.html', enrollments=enrollments)
+    return render_template('student/courses.html', enrollments=enrollments, today=today)
+
+@student_bp.route('/checkin/<int:batch_id>', methods=['POST'])
+@role_required('student')
+def checkin(batch_id):
+    """Student self-check-in for today's class"""
+    student_id = session.get('student_id')
+    today = date.today().isoformat()
+    
+    # Verify student is enrolled in this batch and batch is active
+    enrollment = execute_query(
+        """SELECT e.enrollment_id FROM enrollments e
+           JOIN batches b ON e.batch_id = b.batch_id
+           WHERE e.student_id = %s AND e.batch_id = %s 
+           AND e.status = 'active'
+           AND b.status IN ('upcoming', 'ongoing')
+           AND CURDATE() BETWEEN b.start_date AND b.end_date""",
+        (student_id, batch_id),
+        fetch_one=True
+    )
+    
+    if not enrollment:
+        flash('You cannot check in for this batch at this time.', 'danger')
+        return redirect(url_for('student.courses'))
+    
+    # Check if already checked in today
+    existing = execute_query(
+        """SELECT checkin_id FROM student_checkins
+           WHERE student_id = %s AND batch_id = %s AND checkin_date = %s""",
+        (student_id, batch_id, today),
+        fetch_one=True
+    )
+    
+    if existing:
+        flash('You have already checked in for this batch today!', 'info')
+    else:
+        # Record check-in
+        execute_query(
+            """INSERT INTO student_checkins (student_id, batch_id, checkin_date)
+               VALUES (%s, %s, %s)""",
+            (student_id, batch_id, today),
+            commit=True
+        )
+        flash('✓ Check-in successful! You are marked as present for today.', 'success')
+    
+    return redirect(url_for('student.courses'))
 
 @student_bp.route('/enroll', methods=['GET', 'POST'])
 @role_required('student')
@@ -173,15 +226,19 @@ def view_enrollment(enrollment_id):
     
     # Get enrollment details with all related information
     enrollment = execute_query(
-        """SELECT e.*, c.course_id, c.course_name, c.description, c.duration_months, c.fees,
+        """SELECT e.*, c.course_id, c.course_name, c.description,
+               DATEDIFF(b.end_date, b.start_date) as duration_days,
+               TIMESTAMPDIFF(MONTH, b.start_date, b.end_date) as duration_months, c.fees,
                b.batch_name, b.start_date, b.end_date, b.schedule, b.timing,
                u.full_name as teacher_name, t.contact as teacher_contact,
-               b.classroom, b.status as batch_status
+               b.classroom, b.status as batch_status,
+               f.payment_status
            FROM enrollments e
            JOIN batches b ON e.batch_id = b.batch_id
            JOIN courses c ON b.course_id = c.course_id
            LEFT JOIN teachers t ON b.teacher_id = t.teacher_id
            LEFT JOIN users u ON t.user_id = u.user_id
+           LEFT JOIN fees f ON f.student_id = e.student_id AND f.course_id = c.course_id
            WHERE e.enrollment_id = %s AND e.student_id = %s""",
         (enrollment_id, student_id),
         fetch_one=True
@@ -221,9 +278,9 @@ def cancel_enrollment(enrollment_id):
     """Cancel an enrollment"""
     student_id = session.get('student_id')
     
-    # Verify enrollment belongs to student
+    # Verify enrollment belongs to student and get batch status
     enrollment = execute_query(
-        """SELECT e.*, b.batch_id FROM enrollments e
+        """SELECT e.*, b.batch_id, b.status as batch_status FROM enrollments e
            JOIN batches b ON e.batch_id = b.batch_id
            WHERE e.enrollment_id = %s AND e.student_id = %s""",
         (enrollment_id, student_id),
@@ -236,6 +293,11 @@ def cancel_enrollment(enrollment_id):
     
     if enrollment['status'] != 'active':
         flash('Only active enrollments can be cancelled.', 'warning')
+        return redirect(url_for('student.courses'))
+    
+    # Check batch status - only allow canceling upcoming batches
+    if enrollment['batch_status'] in ('ongoing', 'completed'):
+        flash('Cannot cancel enrollment for ongoing or completed batches. Please contact administration if needed.', 'danger')
         return redirect(url_for('student.courses'))
     
     # Update enrollment status
@@ -258,19 +320,24 @@ def cancel_enrollment(enrollment_id):
 @student_bp.route('/materials')
 @role_required('student')
 def materials():
-    """Access learning materials"""
+    """View course materials - only for active, ongoing, paid/granted access enrollments"""
     student_id = session.get('student_id')
     
-    # Get materials for enrolled courses
     materials = execute_query(
-        """SELECT DISTINCT m.*, c.course_name, b.batch_name
+        """SELECT m.*, c.course_name, mb.batch_name
            FROM learning_materials m
            JOIN courses c ON m.course_id = c.course_id
-           LEFT JOIN batches b ON m.batch_id = b.batch_id
+           LEFT JOIN batches mb ON m.batch_id = mb.batch_id
            JOIN enrollments e ON (e.batch_id = m.batch_id OR (m.batch_id IS NULL AND e.batch_id IN (
                SELECT batch_id FROM batches WHERE course_id = m.course_id
            )))
-           WHERE e.student_id = %s AND e.status = 'active' AND m.is_active = TRUE
+           JOIN batches eb ON e.batch_id = eb.batch_id
+           LEFT JOIN fees f ON f.student_id = e.student_id AND f.course_id = c.course_id
+           WHERE e.student_id = %s 
+             AND e.status = 'active'
+             AND eb.status = 'ongoing'
+             AND (f.payment_status = 'paid' OR e.access_granted = TRUE)
+             AND m.is_active = TRUE
            ORDER BY m.upload_date DESC""",
         (student_id,),
         fetch=True
@@ -498,7 +565,10 @@ def pay_fee(fee_id):
             )
             
             # Check if transaction was created (None means error, >= 0 means success)
-            if transaction_id is None:
+            if transaction_id is not None:
+                # Transaction recorded successfully, continue to update fees
+                pass
+            else:
                 flash('Failed to record payment transaction. Please try again.', 'danger')
                 return render_template('student/pay_fee.html', fee=fee)
             
@@ -538,7 +608,10 @@ def pay_fee(fee_id):
             )
             
             # Check if fee was updated (None means error, >= 0 means success)
-            if fee_updated is None:
+            if fee_updated is not None:
+                # Success! Fee updated successfully
+                pass
+            else:
                 # Fee update failed - this is serious, but transaction was recorded
                 flash('Payment recorded but fee status update failed. Please contact administration.', 'warning')
                 return redirect(url_for('student.fees'))

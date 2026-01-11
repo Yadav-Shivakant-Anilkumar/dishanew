@@ -27,7 +27,7 @@
             <h3 class="card-title">📋 Course Information</h3>
         </div>
         <div class="card-body">
-            <p><strong>Duration:</strong> {{ course.duration_months }} months</p>
+            <p><strong>Duration:</strong> {{ course.duration_months }} {{ course.duration_type }}</p>
             <p><strong>Fees:</strong> <span style="color: var(--primary); font-size: 1.5rem; font-weight: bold;">₹{{
                     course.fees }}</span></p>
             <p><strong>Level:</strong> {{ course.level|title }}</p>

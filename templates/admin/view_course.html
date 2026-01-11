@@ -48,7 +48,7 @@
                 <table class="table table-borderless">
                     <tr>
                         <th width="30%">Duration:</th>
-                        <td>{{ course.duration_months }} Months</td>
+                        <td>{{ course.duration_months }} {{ course.duration_type|title }}</td>
                     </tr>
                     <tr>
                         <th>Fees:</th>
@@ -116,7 +116,8 @@
                             </span>
                         </td>
                         <td>
-                            <a href="{{ url_for('admin.view_batch', batch_id=batch.batch_id) }}" class="btn btn-sm btn-info" title="View">
+                            <a href="{{ url_for('admin.view_batch', batch_id=batch.batch_id) }}"
+                                class="btn btn-sm btn-info" title="View">
                                 <i class="fas fa-eye"></i>
                             </a>
                         </td>

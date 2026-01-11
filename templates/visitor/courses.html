@@ -14,7 +14,7 @@
             <div class="card">
                 <h4>{{ course.course_name }}</h4>
                 <p class="text-muted">{{ course.description[:100] }}...</p>
-                <p><strong>Duration:</strong> {{ course.duration_months }} months</p>
+                <p><strong>Duration:</strong> {{ course.duration_months }} {{ course.duration_type }}</p>
                 <p><strong>Fees:</strong> ₹{{ course.fees }}</p>
                 <div class="d-flex justify-between align-center">
                     <span class="badge badge-{{ course.level == 'beginner' and 'success' or 'warning' }}">{{
