@@ -502,9 +502,19 @@ def pay_fee(fee_id):
                 flash('Failed to record payment transaction. Please try again.', 'danger')
                 return render_template('student/pay_fee.html', fee=fee)
             
-            # Update fee record with new amounts
-            new_paid = round(fee['paid_amount'] + amount, 2)
-            new_due = round(fee['total_amount'] - new_paid, 2)
+            # IMPORTANT: Manual fee update as failsafe
+            # While we have a database trigger 'update_fees_on_payment', it may not fire in all configurations
+            # This manual update ensures fees are always synchronized with transactions
+            
+            # Calculate total paid from ALL transactions for this fee
+            total_paid_result = execute_query(
+                "SELECT COALESCE(SUM(amount), 0) as total FROM fee_transactions WHERE fee_id = %s",
+                (fee_id,),
+                fetch_one=True
+            )
+            
+            new_paid = round(float(total_paid_result['total']), 2)
+            new_due = round(float(fee['total_amount']) - new_paid, 2)
             
             # Ensure due amount is not negative (handle floating point precision)
             if new_due < 0.01:
@@ -529,10 +539,12 @@ def pay_fee(fee_id):
             
             # Check if fee was updated (None means error, >= 0 means success)
             if fee_updated is None:
-                flash('Failed to update fee record. Please contact administration.', 'danger')
-                return render_template('student/pay_fee.html', fee=fee)
+                # Fee update failed - this is serious, but transaction was recorded
+                flash('Payment recorded but fee status update failed. Please contact administration.', 'warning')
+                return redirect(url_for('student.fees'))
             
             # Success message
+
             flash(f'✅ Payment of ₹{amount:.2f} recorded successfully! Receipt No: {receipt_no}', 'success')
             return redirect(url_for('student.fees'))
             
