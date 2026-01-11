@@ -40,6 +40,9 @@ def get_unique_filename(filename):
 
 def extract_youtube_id(url):
     """Extract YouTube video ID from various URL formats"""
+    if not url or ('youtube.com' not in url and 'youtu.be' not in url):
+        return None
+        
     # Patterns for: youtube.com/watch?v=ID, youtu.be/ID, youtube.com/embed/ID
     patterns = [
         r'(?:v=|\/)([0-9A-Za-z_-]{11}).*',

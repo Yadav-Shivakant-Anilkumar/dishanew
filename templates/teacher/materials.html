@@ -119,12 +119,88 @@
 <div class="card">
     <div class="card-header">
         <h3>📚 All Learning Materials</h3>
+        <span class="badge badge-primary badge-pill">{{ materials|length }} Total</span>
     </div>
+
+    <!-- Filter Bar -->
+    <div class="card-body border-bottom bg-secondary-light">
+        <div class="row align-items-center">
+            <!-- Search: Full width on mobile, 3/12 on large screens -->
+            <div class="col-12 col-lg-3 mb-3 mb-lg-0">
+                <div class="input-group input-group-alternative">
+                    <div class="input-group-prepend">
+                        <span class="input-group-text"><i class="fas fa-search"></i></span>
+                    </div>
+                    <input type="text" id="filterSearch" class="form-control" placeholder="Search title..."
+                        onkeyup="filterMaterials()">
+                </div>
+            </div>
+
+            <!-- Course Filter: Half on mobile, 2.5/12 on large -->
+            <div class="col-6 col-lg-3 mb-3 mb-lg-0">
+                <select id="filterCourse" class="form-control" onchange="filterMaterials()">
+                    <option value="all">📚 All Courses</option>
+                    {% for course in courses %}
+                    <option value="{{ course.course_id }}">{{ course.course_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Batch Filter: Half on mobile, 2/12 on large -->
+            <div class="col-6 col-lg-2 mb-3 mb-lg-0">
+                <input type="text" id="filterBatch" class="form-control" placeholder="👥 Batch..."
+                    onkeyup="filterMaterials()">
+            </div>
+
+            <!-- Type Filter: Half on mobile, 2/12 on large -->
+            <div class="col-6 col-lg-2 pr-2 mb-lg-0">
+                <select id="filterType" class="form-control" onchange="filterMaterials()">
+                    <option value="all">📂 Type</option>
+                    <option value="youtube_video">📺 YouTube</option>
+                    <option value="youtube_playlist">▶️ Playlist</option>
+                    <option value="external_video">🎥 Video File</option>
+                    <option value="document">📄 PDF/Doc</option>
+                    <option value="presentation">📊 Slides</option>
+                    <option value="code">💻 Code</option>
+                    <option value="link">🔗 Link</option>
+                </select>
+            </div>
+
+            <!-- Active Toggle: Half on mobile, 2.5/12 on large -->
+            <div class="col-6 col-lg-2 pl-2 mb-lg-0 text-right text-lg-left">
+                <div class="custom-control custom-switch d-inline-block">
+                    <input type="checkbox" class="custom-control-input" id="filterActive" onchange="filterMaterials()">
+                    <label class="custom-control-label font-weight-bold ml-2" for="filterActive">Active</label>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        .input-group-alternative {
+            box-shadow: 0 1px 3px rgba(50, 50, 93, 0.15), 0 1px 0 rgba(0, 0, 0, 0.02);
+            border: 0;
+            transition: box-shadow .15s ease;
+        }
+
+        .input-group-alternative .form-control,
+        .input-group-alternative .input-group-text {
+            border: 0;
+            box-shadow: none;
+        }
+
+        .bg-secondary-light {
+            background-color: #f6f9fc !important;
+        }
+    </style>
+
     <div class="card-body">
         {% if materials %}
         <div class="materials-grid">
             {% for material in materials %}
-            <div class="material-card">
+            <div class="material-card" data-title="{{ material.title|lower }}" data-course-id="{{ material.course_id }}"
+                data-batch="{{ material.batch_name|lower if material.batch_name else '' }}"
+                data-type="{{ material.material_type }}" data-active="{{ 'true' if material.is_active else 'false' }}">
                 <!-- Material Thumbnail/Preview -->
                 <div class="material-preview">
                     {% if material.file_path|youtube_thumb %}
@@ -133,6 +209,11 @@
                     <div class="play-overlay">
                         <i class="fab fa-youtube"></i>
                     </div>
+                    {% elif material.file_path and ('.jpg' in material.file_path.lower() or '.jpeg' in
+                    material.file_path.lower() or '.png' in material.file_path.lower() or '.gif' in
+                    material.file_path.lower()) %}
+                    <!-- Image Thumbnail -->
+                    <img src="{{ material.file_path }}" alt="{{ material.title }}">
                     {% elif material.material_type == 'youtube_playlist' %}
                     <!-- YouTube Playlist Icon -->
                     <div class="material-icon" style="background: linear-gradient(135deg, #FF0000 0%, #CC0000 100%);">
@@ -865,6 +946,42 @@
 
     function closeEditModal() {
         document.getElementById('editModal').style.display = 'none';
+    }
+
+    // Filter Materials Function
+    function filterMaterials() {
+        const searchText = document.getElementById('filterSearch').value.toLowerCase();
+        const courseId = document.getElementById('filterCourse').value;
+        const batchText = document.getElementById('filterBatch').value.toLowerCase();
+        const type = document.getElementById('filterType').value;
+        const showActiveOnly = document.getElementById('filterActive').checked;
+
+        const cards = document.querySelectorAll('.material-card');
+        let visibleCount = 0;
+
+        cards.forEach(card => {
+            const title = card.getAttribute('data-title');
+            const cardCourseId = card.getAttribute('data-course-id');
+            const cardBatch = card.getAttribute('data-batch');
+            const cardType = card.getAttribute('data-type');
+            const isActive = card.getAttribute('data-active') === 'true';
+
+            let matchesSearch = title.includes(searchText);
+            let matchesCourse = courseId === 'all' || cardCourseId === courseId;
+            let matchesBatch = batchText === '' || cardBatch.includes(batchText);
+            let matchesType = type === 'all' || cardType === type;
+            let matchesActive = !showActiveOnly || isActive;
+
+            if (matchesSearch && matchesCourse && matchesBatch && matchesType && matchesActive) {
+                card.style.display = 'block';
+                visibleCount++;
+            } else {
+                card.style.display = 'none';
+            }
+        });
+
+        // Show/Hide "No materials" message if needed
+        // (Optional enhancement: add a specific 'no results' div)
     }
 
     // Close modal when clicking outside
