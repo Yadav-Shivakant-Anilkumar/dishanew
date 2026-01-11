@@ -1,15 +1,23 @@
 // Main JavaScript for Disha Computer Classes Management System
 
 document.addEventListener('DOMContentLoaded', function () {
-    // Auto-hide alerts after 5 seconds
-    const alerts = document.querySelectorAll('.alert');
-    alerts.forEach(alert => {
-        setTimeout(() => {
-            alert.style.transition = 'opacity 0.5s ease';
-            alert.style.opacity = '0';
-            setTimeout(() => alert.remove(), 500);
-        }, 5000);
-    });
+    // Auto-hide ONLY flash messages (not alerts with buttons or links)
+    // Flash messages are in the flash-messages container, other alerts should persist
+    const flashContainer = document.querySelector('.container.mt-2');
+    if (flashContainer) {
+        const flashAlerts = flashContainer.querySelectorAll('.alert');
+        flashAlerts.forEach(alert => {
+            // Only auto-hide if the alert doesn't contain interactive elements
+            const hasInteractiveElements = alert.querySelector('a, button, input, select, textarea');
+            if (!hasInteractiveElements) {
+                setTimeout(() => {
+                    alert.style.transition = 'opacity 0.5s ease';
+                    alert.style.opacity = '0';
+                    setTimeout(() => alert.remove(), 500);
+                }, 5000);
+            }
+        });
+    }
 
     // Form validation
     const forms = document.querySelectorAll('.needs-validation');
